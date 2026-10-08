@@ -31,3 +31,7 @@ test('VMG複数base64本文とMessage-ID欠落',async()=>{
  assert.equal(emails[1].messageId,null); assert.ok(emails[0].text.includes('129名'));
 });
 test('正規化はCRLFと全角括弧を統一',()=>assert.equal(normalizeText('（１）\r\n'),' (1)\n'.trimStart()));
+test('実Shift_JISのVMGを復号し解析',async()=>{
+ const emails=await decodeVmg(readFileSync(new URL('./fixtures/shift-jis.vmg',import.meta.url)));
+ assert.equal(parseReport(emails[0].text).summaries[0].customers,129);
+});
