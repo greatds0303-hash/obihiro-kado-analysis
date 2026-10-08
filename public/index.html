@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b2d5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="帯広店 稼働分析">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" href="./icon-192.png">
+<title>帯広店 稼働分析</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#d9deea;--accent:#0f62fe;--nav:#082b59;--good:#138a5b;--bad:#c13d3d}
+*{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+body{padding-bottom:max(72px,env(safe-area-inset-bottom))}
+.topbar{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,#082b59,#0f62fe);color:white;padding:12px 14px;box-shadow:0 3px 14px #0002}
+.topbar .title{font-weight:800;font-size:20px}.topbar .sub{opacity:.85;font-size:11px;margin-top:2px}
+.wrap{max-width:1500px;margin:auto;padding:12px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;margin-top:10px;box-shadow:0 2px 8px #00000008}
+.drop{border:2px dashed #a9b4cf;border-radius:14px;padding:22px;text-align:center;background:#fbfcff;cursor:pointer}.drop.drag{border-color:var(--accent);background:#eef3ff}
+.btn{border:0;border-radius:10px;padding:10px 13px;background:var(--accent);color:white;font-weight:700;cursor:pointer}.btn.gray{background:#eef0f4;color:#333}
+.grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.kpi{padding:11px;border-radius:12px;background:#fafbfe;border:1px solid var(--line)}.kpi .v{font-size:21px;font-weight:800}.kpi .l{font-size:11px;color:var(--muted)}
+.filters{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:8px;align-items:end}.field label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}.field input,.field select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}.tab{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer}.tab.active{background:#172033;color:#fff}
+table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px solid #e7eaf1;padding:7px 8px;white-space:nowrap;text-align:right}th{position:sticky;top:0;background:#f8f9fc;z-index:1}th:first-child,td:first-child,th:nth-child(3),td:nth-child(3),th:nth-child(4),td:nth-child(4){text-align:left}
+.scroll{overflow:auto;max-height:480px;border:1px solid var(--line);border-radius:10px}.msg{font-size:13px;padding:8px 10px;border-radius:8px;background:#f8fafc;color:#344054;margin-top:8px}.ok{color:var(--good)}.bad{color:var(--bad)}
+canvas{width:100%;height:260px;display:block}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.small{font-size:12px;color:var(--muted)}
+.compare{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.compare .box{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fcfdff}.delta.pos{color:var(--good)}.delta.neg{color:var(--bad)}
+.bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:7px 4px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -2px 12px #0001}.bottomnav button{background:none;border:0;color:#526078;font-size:11px;font-weight:700}.bottomnav button.active{color:var(--accent)}
+.install-banner{display:none;position:fixed;left:12px;right:12px;bottom:82px;z-index:40;background:#0b2d5c;color:#fff;padding:12px;border-radius:12px;box-shadow:0 4px 20px #0004}.install-banner.show{display:block}
+@media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}.filters{grid-template-columns:repeat(2,1fr)}.compare{grid-template-columns:1fr}.wrap{padding:9px}}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="title">EAGLE 帯広店 稼働分析</div><div class="sub">VMGメール自動解析・端末内保存</div></div>
+
+<div class="wrap" id="home">
+  <div class="card">
+    <div class="drop" id="drop">VMGファイルをここにドロップ<br><span class="small">またはタップして選択（複数可）</span></div>
+    <input id="file" type="file" accept=".vmg,text/*" multiple hidden>
+    <div id="status" class="msg">保存済みデータを確認しています…</div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="kpi"><div class="v" id="kEmails">0</div><div class="l">メール数</div></div>
+      <div class="kpi"><div class="v" id="kDays">0</div><div class="l">日数</div></div>
+      <div class="kpi"><div class="v" id="kRecords">0</div><div class="l">貸玉レコード</div></div>
+      <div class="kpi"><div class="v" id="kStores">0</div><div class="l">店舗数</div></div>
+      <div class="kpi"><div class="v" id="kLatest">-</div><div class="l">最新11時客数</div></div>
+      <div class="kpi"><div class="v" id="kRange">-</div><div class="l">期間</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>データ操作</b><span class="small">自動保存ON</span></div>
+    <div class="row" style="margin-top:9px">
+      <button class="btn" id="csvBtn">CSV出力</button>
+      <button class="btn gray" id="backupBtn">バックアップ</button>
+      <button class="btn gray" id="restoreBtn">復元</button>
+      <button class="btn gray" id="clearBtn">データクリア</button>
+      <input id="restoreFile" type="file" accept=".json,application/json" hidden>
+    </div>
+  </div>
+
+  <div class="card" id="analysis">
+    <div class="filters">
+      <div class="field"><label>開始日</label><input type="date" id="from"></div>
+      <div class="field"><label>終了日</label><input type="date" id="to"></div>
+      <div class="field"><label>時間</label><select id="time"><option value="">すべて</option><option>11</option><option>15</option><option>19</option></select></div>
+      <div class="field"><label>店舗</label><select id="store"><option value="">すべて</option></select></div>
+      <div class="field"><label>貸玉</label><select id="rate"><option value="">すべて</option></select></div>
+      <div class="field"><label>比較</label><select id="base"><option value="7">前週</option><option value="28">4週前</option></select></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>帯広店 時間帯比較（最新日）</b>
+    <div class="compare" id="latestCompare" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>帯広店 客数推移</b><span class="small" id="chartLabel"></span></div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="card">
+    <b>店舗別 最新比較</b>
+    <div id="ranking" class="scroll" style="margin-top:10px;max-height:320px"></div>
+  </div>
+
+  <div class="card" id="detail">
+    <div class="tabs">
+      <button class="tab active" data-tab="summary">店舗総合</button>
+      <button class="tab" data-tab="records">貸玉別</button>
+      <button class="tab" data-tab="specials">注目機種群</button>
+    </div>
+    <div id="tableWrap" class="scroll" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div class="bottomnav">
+  <button class="active" data-target="home">ホーム</button>
+  <button data-target="analysis">分析</button>
+  <button data-target="detail">一覧</button>
+</div>
+
+<div class="install-banner" id="installBanner"><b>ホーム画面に追加できます</b><div class="small" style="color:#dce7ff;margin-top:3px">通常のアプリのようにアイコンから起動できます。</div><div class="row" style="margin-top:8px"><button class="btn" id="installBtn">インストール</button><button class="btn gray" id="installClose">閉じる</button></div></div>
+
+<script>
+const S={records:[],summaries:[],specials:[],mailKeys:new Set(),emails:0,tab:'summary'};
+const TARGET='イーグル スクエア帯広店';
+const $=id=>document.getElementById(id);
+const DB_NAME='obihiro-kado-db', STORE='state';
+
+function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{r.result.createObjectStore(STORE)};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function saveState(){try{const db=await openDb();const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({records:S.records,summaries:S.summaries,specials:S.specials,mailKeys:[...S.mailKeys],emails:S.emails},'main');await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=()=>j(tx.error)})}catch(e){console.warn(e)}}
+async function loadState(){try{const db=await openDb();const tx=db.transaction(STORE,'readonly');const req=tx.objectStore(STORE).get('main');const data=await new Promise((r,j)=>{req.onsuccess=()=>r(req.result);req.onerror=()=>j(req.error)});if(data){S.records=data.records||[];S.summaries=data.summaries||[];S.specials=data.specials||[];S.mailKeys=new Set(data.mailKeys||[]);S.emails=data.emails||0;$('status').innerHTML='<span class="ok">保存済みデータを復元しました。</span>'}else $('status').textContent='まだデータは読み込まれていません。'}catch(e){$('status').textContent='保存データの読込に失敗しました。'}updateAll()}
+
+function decodeVmg(arrayBuffer){
+  const raw=new TextDecoder('utf-8').decode(arrayBuffer),chunks=raw.split('BEGIN:VMSG').slice(1);let emails=0;
+  for(const chunk of chunks){
+    const mm=chunk.match(/Content-Type:\s*text\/plain;\s*charset="?([^"\r\n;]+)"?[\s\S]*?Content-Transfer-Encoding:\s*base64\s*\r?\n\r?\n([\s\S]*?)(?:\r?\nEND:VBODY)/i);if(!mm)continue;
+    const charset=(mm[1]||'shift_jis').trim().toLowerCase(),b64=mm[2].replace(/\s+/g,'');let bytes;
+    try{const bin=atob(b64);bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i)}catch(e){continue}
+    let body='';try{body=new TextDecoder(charset).decode(bytes)}catch(e){try{body=new TextDecoder('shift_jis').decode(bytes)}catch(_){continue}}
+    const id=(chunk.match(/Message-ID:\s*([^\r\n]+)/i)||[])[1]||body.slice(0,120);if(S.mailKeys.has(id))continue;S.mailKeys.add(id);emails++;parseBody(body,id)
+  }
+  S.emails+=emails;return{emails,totalChunks:chunks.length}
+}
+function parseBody(body,mailId){
+  const lines=body.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').map(x=>x.trim());let date=null,time=null,store=null,storeTotal=null;
+  for(let i=0;i<lines.length;i++){
+    let line=lines[i],m=line.match(/^(\d{4})\/(\d{2})\/(\d{2})\s+(11|15|19)時$/);
+    if(m){date=`${m[1]}-${m[2]}-${m[3]}`;time=+m[4];store=null;storeTotal=null;continue}
+    m=line.match(/^(.+?)\s*\((\d+)台\)$/);
+    if(m){const name=m[1].trim(),n=+m[2];
+      if(/^[0-9.]+円[PS]$/.test(name)){if(date&&store){const a=(lines[i+1]||'').match(/^男(\d+)名\s*女(\d+)名$/),b=(lines[i+2]||'').match(/^合計(\d+)名\s*(\d+)%$/),c=(lines[i+3]||'').match(/^客数シェア\s*(\d+)%$/);if(a&&b&&c)S.records.push({date,time,store,storeTotal,rate:name,machines:n,male:+a[1],female:+a[2],customers:+b[1],util:+b[2],share:+c[1],mailId})}}
+      else{store=name.replace(/\s+/g,' ').trim();storeTotal=n}continue}
+    m=line.match(/^総合計(\d+)名\s*(\d+)%$/);if(m&&date&&store){const sh=(lines[i+1]||'').match(/^客数シェア\s*(\d+)%$/);S.summaries.push({date,time,store,storeTotal,customers:+m[1],util:+m[2],share:sh?+sh[1]:null,mailId});continue}
+    m=line.match(/^(.+?)【(\d+)台】\s*(\d+)名\s*(\d+)%$/);if(m&&date&&store)S.specials.push({date,time,store,group:m[1].trim(),machines:+m[2],customers:+m[3],util:+m[4],mailId})
+  }
+}
+function uniq(a){return[...new Set(a)].sort((x,y)=>String(x).localeCompare(String(y),'ja',{numeric:true}))}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fillSelect(id,vals,preferred){const el=$(id),cur=el.value;el.innerHTML='<option value="">すべて</option>'+vals.map(v=>`<option>${esc(v)}</option>`).join('');if(vals.includes(cur))el.value=cur;else if(preferred&&vals.includes(preferred))el.value=preferred}
+function filtered(type){const arr=S[type],f=$('from').value,t=$('to').value,tm=$('time').value,st=$('store').value,rt=$('rate').value;return arr.filter(r=>(!f||r.date>=f)&&(!t||r.date<=t)&&(!tm||String(r.time)===tm)&&(!st||r.store===st)&&(!rt||!('rate'in r)||r.rate===rt))}
+function dayDiff(date,days){const d=new Date(date+'T00:00:00');d.setDate(d.getDate()-days);return d.toISOString().slice(0,10)}
+function fmtDelta(v){if(v==null||Number.isNaN(v))return '-';return(v>0?'+':'')+v}
+function updateAll(){
+  const dates=uniq(S.summaries.map(x=>x.date)),stores=uniq(S.summaries.map(x=>x.store));$('kEmails').textContent=S.emails.toLocaleString();$('kDays').textContent=dates.length.toLocaleString();$('kRecords').textContent=S.records.length.toLocaleString();$('kStores').textContent=stores.length;$('kRange').textContent=dates.length?`${dates[0].slice(5).replace('-','/')}〜${dates.at(-1).slice(5).replace('-','/')}`:'-';
+  fillSelect('store',stores,TARGET);fillSelect('rate',uniq(S.records.map(x=>x.rate)));if(dates.length&&!$('from').value){$('from').value=dates[0];$('to').value=dates.at(-1)}
+  const latest11=[...S.summaries].filter(x=>x.store===TARGET&&x.time===11).sort((a,b)=>b.date.localeCompare(a.date))[0];$('kLatest').textContent=latest11?latest11.customers.toLocaleString():'-';renderLatestCompare();renderRanking();renderTable();drawChart()
+}
+function renderLatestCompare(){
+  const rows=S.summaries.filter(x=>x.store===TARGET).sort((a,b)=>b.date.localeCompare(a.date));if(!rows.length){$('latestCompare').innerHTML='<div class="msg">データなし</div>';return}
+  const latest=rows[0].date,baseDays=+$('base').value,baseDate=dayDiff(latest,baseDays);let h='';
+  [11,15,19].forEach(tm=>{const cur=S.summaries.find(x=>x.store===TARGET&&x.date===latest&&x.time===tm),prev=S.summaries.find(x=>x.store===TARGET&&x.date===baseDate&&x.time===tm),delta=cur&&prev?cur.customers-prev.customers:null;h+=`<div class="box"><div class="small">${tm}時 / ${latest}</div><div style="font-size:27px;font-weight:800">${cur?cur.customers:'-'}<span class="small">名</span></div><div class="small">稼働率 ${cur?cur.util+'%':'-'} / シェア ${cur&&cur.share!=null?cur.share+'%':'-'}</div><div class="small">比較 ${baseDate}: <span class="delta ${delta>0?'pos':delta<0?'neg':''}">${fmtDelta(delta)}名</span></div></div>`});$('latestCompare').innerHTML=h
+}
+function renderRanking(){
+  const tm=$('time').value?+$('time').value:11,rows=S.summaries.filter(x=>x.time===tm);if(!rows.length){$('ranking').innerHTML='<div class="msg">データなし</div>';return}const latest=rows.map(x=>x.date).sort().at(-1),data=rows.filter(x=>x.date===latest).sort((a,b)=>b.customers-a.customers);
+  $('ranking').innerHTML='<table><thead><tr><th>順位</th><th>店舗</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.store)}</td><td><b>${r.customers}</b></td><td>${r.util}%</td><td>${r.share??''}${r.share!=null?'%':''}</td></tr>`).join('')+'</tbody></table>'
+}
+function renderTable(){
+  const type=S.tab,rows=filtered(type),data=rows.slice(0,1000);let h='';
+  if(type==='records')h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>貸玉</th><th>台数</th><th>男性</th><th>女性</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${esc(r.rate)}</td><td>${r.machines}</td><td>${r.male}</td><td>${r.female}</td><td><b>${r.customers}</b></td><td>${r.util}%</td><td>${r.share}%</td></tr>`).join('')+'</tbody></table>';
+  else if(type==='summary')h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>総台数</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${r.storeTotal}</td><td><b>${r.customers}</b></td><td>${r.util}%</td><td>${r.share??''}${r.share!=null?'%':''}</td></tr>`).join('')+'</tbody></table>';
+  else h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>機種群</th><th>台数</th><th>客数</th><th>稼働率</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${esc(r.group)}</td><td>${r.machines}</td><td><b>${r.customers}</b></td><td>${r.util}%</td></tr>`).join('')+'</tbody></table>';$('tableWrap').innerHTML=h||'<div class="msg">該当データなし</div>'
+}
+function drawChart(){
+  const c=$('chart'),ctx=c.getContext('2d'),dpr=window.devicePixelRatio||1,W=c.clientWidth||1000,H=260;c.width=W*dpr;c.height=H*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);let rows=filtered('summaries').filter(r=>r.store===TARGET);const tm=$('time').value?+$('time').value:11;rows=rows.filter(r=>r.time===tm).sort((a,b)=>a.date.localeCompare(b.date));$('chartLabel').textContent=`${tm}時`;if(!rows.length){ctx.fillStyle='#667085';ctx.font='14px sans-serif';ctx.fillText('表示できるデータがありません',20,40);return}
+  const pad={l:46,r:18,t:18,b:34},max=Math.max(...rows.map(r=>r.customers),1);ctx.strokeStyle='#d9deea';ctx.lineWidth=1;ctx.font='11px sans-serif';ctx.fillStyle='#667085';for(let k=0;k<=4;k++){const y=pad.t+(H-pad.t-pad.b)*k/4;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();ctx.fillText(Math.round(max*(1-k/4)),7,y+4)}const x=i=>pad.l+(W-pad.l-pad.r)*(rows.length===1?.5:i/(rows.length-1)),y=v=>pad.t+(H-pad.t-pad.b)*(1-v/max);ctx.strokeStyle='#0f62fe';ctx.lineWidth=2;ctx.beginPath();rows.forEach((r,i)=>i?ctx.lineTo(x(i),y(r.customers)):ctx.moveTo(x(i),y(r.customers)));ctx.stroke();ctx.fillStyle='#0f62fe';rows.forEach((r,i)=>{ctx.beginPath();ctx.arc(x(i),y(r.customers),2.5,0,Math.PI*2);ctx.fill()});const step=Math.max(1,Math.ceil(rows.length/8));ctx.fillStyle='#667085';rows.forEach((r,i)=>{if(i%step===0||i===rows.length-1)ctx.fillText(r.date.slice(5).replace('-','/'),x(i)-14,H-10)})
+}
+function csvEscape(v){v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function exportCsv(){const type=S.tab,rows=filtered(type);if(!rows.length){alert('出力するデータがありません');return}let cols=type==='records'?[['date','日付'],['time','時間'],['store','店舗'],['rate','貸玉'],['machines','台数'],['male','男性'],['female','女性'],['customers','客数'],['util','稼働率%'],['share','客数シェア%']]:type==='summary'?[['date','日付'],['time','時間'],['store','店舗'],['storeTotal','総台数'],['customers','客数'],['util','稼働率%'],['share','客数シェア%']]:[['date','日付'],['time','時間'],['store','店舗'],['group','機種群'],['machines','台数'],['customers','客数'],['util','稼働率%']];const csv='\ufeff'+cols.map(x=>x[1]).join(',')+'\n'+rows.map(r=>cols.map(c=>csvEscape(r[c[0]])).join(',')).join('\n');download(new Blob([csv],{type:'text/csv;charset=utf-8'}),`帯広店_稼働メール_${type}_${new Date().toISOString().slice(0,10)}.csv`)}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+async function loadFiles(files){if(!files.length)return;let added=0,total=0,errors=[];$('status').textContent='読み込み中…';for(const f of files){try{const r=decodeVmg(await f.arrayBuffer());added+=r.emails;total+=r.totalChunks}catch(e){errors.push(f.name)}}updateAll();await saveState();$('status').innerHTML=`<span class="ok">読み込み完了：</span>${files.length}ファイル / 新規メール ${added}通 / VMG内 ${total}通${errors.length?` <span class="bad">失敗:${errors.join(', ')}</span>`:''}`}
+function backup(){const data={version:1,exportedAt:new Date().toISOString(),records:S.records,summaries:S.summaries,specials:S.specials,mailKeys:[...S.mailKeys],emails:S.emails};download(new Blob([JSON.stringify(data)],{type:'application/json'}),`帯広店_稼働分析_バックアップ_${new Date().toISOString().slice(0,10)}.json`)}
+async function restore(file){try{const d=JSON.parse(await file.text());S.records=d.records||[];S.summaries=d.summaries||[];S.specials=d.specials||[];S.mailKeys=new Set(d.mailKeys||[]);S.emails=d.emails||0;await saveState();updateAll();$('status').innerHTML='<span class="ok">バックアップを復元しました。</span>'}catch(e){alert('復元に失敗しました。')}}
+const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();file.onchange=e=>loadFiles([...e.target.files]);['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
+['from','to','time','store','rate','base'].forEach(id=>$(id).addEventListener('change',()=>{renderLatestCompare();renderRanking();renderTable();drawChart()}));
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;renderTable()});
+$('csvBtn').onclick=exportCsv;$('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=e=>e.target.files[0]&&restore(e.target.files[0]);$('clearBtn').onclick=async()=>{if(confirm('読み込んだデータをすべてクリアしますか？')){S.records=[];S.summaries=[];S.specials=[];S.mailKeys.clear();S.emails=0;$('from').value='';$('to').value='';await saveState();updateAll();$('status').textContent='データをクリアしました。'}};
+document.querySelectorAll('.bottomnav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.bottomnav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById(b.dataset.target).scrollIntoView({behavior:'smooth',block:'start'})});
+let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBanner').classList.add('show')});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBanner').classList.remove('show')}};$('installClose').onclick=()=>$('installBanner').classList.remove('show');
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
+window.addEventListener('resize',drawChart);loadState();
+</script>
+</body>
+</html>

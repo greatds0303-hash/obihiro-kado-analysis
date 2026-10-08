@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+data/
+playwright-report/
+test-results/
+.superpowers/
