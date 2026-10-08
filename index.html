@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b2d5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="帯広店 稼働分析">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" href="./icon-192.png">
+<title>帯広店 稼働分析</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#d9deea;--accent:#0f62fe;--nav:#082b59;--good:#138a5b;--bad:#c13d3d}
+*{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+body{padding-bottom:max(72px,env(safe-area-inset-bottom))}
+.topbar{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,#082b59,#0f62fe);color:white;padding:12px 14px;box-shadow:0 3px 14px #0002}
+.topbar .title{font-weight:800;font-size:20px}.topbar .sub{opacity:.85;font-size:11px;margin-top:2px}
+.wrap{max-width:1500px;margin:auto;padding:12px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;margin-top:10px;box-shadow:0 2px 8px #00000008}
+.drop{border:2px dashed #a9b4cf;border-radius:14px;padding:22px;text-align:center;background:#fbfcff;cursor:pointer}.drop.drag{border-color:var(--accent);background:#eef3ff}
+.btn{border:0;border-radius:10px;padding:10px 13px;background:var(--accent);color:white;font-weight:700;cursor:pointer}.btn:disabled{opacity:.55;cursor:wait}.btn.gray{background:#eef0f4;color:#333}
+.grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.kpi{padding:11px;border-radius:12px;background:#fafbfe;border:1px solid var(--line)}.kpi .v{font-size:21px;font-weight:800}.kpi .l{font-size:11px;color:var(--muted)}
+.filters{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:8px;align-items:end}.field label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}.field input,.field select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}.tab{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer}.tab.active{background:#172033;color:#fff}
+table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px solid #e7eaf1;padding:7px 8px;white-space:nowrap;text-align:right}th{position:sticky;top:0;background:#f8f9fc;z-index:1}th:first-child,td:first-child,th:nth-child(3),td:nth-child(3),th:nth-child(4),td:nth-child(4){text-align:left}
+.scroll{overflow:auto;max-height:480px;border:1px solid var(--line);border-radius:10px}.msg{font-size:13px;padding:8px 10px;border-radius:8px;background:#f8fafc;color:#344054;margin-top:8px}.ok{color:var(--good)}.bad{color:var(--bad)}
+canvas{width:100%;height:260px;display:block}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.small{font-size:12px;color:var(--muted)}
+.compare{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.compare .box{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fcfdff}.delta.pos{color:var(--good)}.delta.neg{color:var(--bad)}
+.bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:7px 4px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -2px 12px #0001}.bottomnav button{background:none;border:0;color:#526078;font-size:11px;font-weight:700}.bottomnav button.active{color:var(--accent)}
+.install-banner{display:none;position:fixed;left:12px;right:12px;bottom:82px;z-index:40;background:#0b2d5c;color:#fff;padding:12px;border-radius:12px;box-shadow:0 4px 20px #0004}.install-banner.show{display:block}
+@media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}.filters{grid-template-columns:repeat(2,1fr)}.compare{grid-template-columns:1fr}.wrap{padding:9px}}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="title">EAGLE 帯広店 稼働分析</div><div class="sub">メール自動同期・VMG解析・端末内保存</div></div>
+
+<div class="wrap" id="home">
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>メール本文を取り込む</b><span id="networkStatus" class="small" role="status"></span></div>
+    <p class="small">ドコモメールで稼働報告を開き、本文をコピーして下の欄に貼り付けてください。日時・店舗名から末尾まで含めます。</p>
+    <label class="small" for="mailText">稼働報告メールの本文</label>
+    <textarea id="mailText" rows="6" maxlength="131072" placeholder="2026/10/06 11時&#10;イーグル スクエア帯広店 （516台）&#10;…" style="display:block;width:100%;margin:6px 0 10px;padding:10px;border:1px solid #d9deea;border-radius:8px;font:inherit;font-size:14px"></textarea>
+    <button class="btn" id="pasteImportBtn">本文を取り込む</button>
+    <div class="msg" id="pasteStatus" role="status">手動取込はこのスマホに保存します。メールの認証情報は不要です。</div>
+    <div class="small bad" id="storageStatus" role="alert"></div>
+    <details style="margin-top:10px"><summary class="small">自動同期を使う場合の設定</summary><label for="connectionMode" class="small">データ連携</label><select id="connectionMode" style="max-width:100%;padding:9px"><option value="manual">手動（この端末に保存）</option><option value="server">サーバー連携（自動同期）</option></select><p class="small">サーバー連携にはメール取得用のサーバー設定が必要です。</p></details>
+  </div>
+  <div class="card" id="serverPanel" hidden>
+    <div class="row" style="justify-content:space-between"><b>メール自動同期</b></div>
+    <div class="row" style="margin-top:9px"><button class="btn" id="syncBtn">メール同期</button><span class="small" id="pendingStatus"></span></div>
+    <details style="margin-top:9px"><summary class="small">過去メールの取得</summary><label class="small" for="syncSince">この日から再取得（未指定は新着のみ）</label><input type="date" id="syncSince"></details>
+    <div class="msg" id="syncStatus" role="status">同期状態を確認しています…</div>
+    <div class="small bad" id="syncError" role="alert" style="margin-top:6px"></div>
+    <form id="loginForm" hidden style="margin-top:9px"><label class="small" for="appPassword">アプリのログインパスワード</label><div class="row"><input type="password" id="appPassword" autocomplete="off" required style="max-width:100%;padding:9px"><button class="btn" type="submit">ログイン</button></div><div class="small">docomoのパスワードはこの画面に入力しないでください。</div></form>
+  </div>
+  <div class="card">
+    <div class="drop" id="drop">VMGファイルをここにドロップ<br><span class="small">またはタップして選択（複数可）</span></div>
+    <input id="file" type="file" accept=".vmg,text/*" multiple hidden>
+    <div id="status" class="msg">保存済みデータを確認しています…</div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="kpi"><div class="v" id="kEmails">0</div><div class="l">メール数</div></div>
+      <div class="kpi"><div class="v" id="kDays">0</div><div class="l">日数</div></div>
+      <div class="kpi"><div class="v" id="kRecords">0</div><div class="l">貸玉レコード</div></div>
+      <div class="kpi"><div class="v" id="kStores">0</div><div class="l">店舗数</div></div>
+      <div class="kpi"><div class="v" id="kLatest">-</div><div class="l">最新11時客数</div></div>
+      <div class="kpi"><div class="v" id="kRange">-</div><div class="l">期間</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>データ操作</b><span class="small">自動保存ON</span></div>
+    <div class="row" style="margin-top:9px">
+      <button class="btn" id="csvBtn">CSV出力</button>
+      <button class="btn gray" id="backupBtn">バックアップ</button>
+      <button class="btn gray" id="restoreBtn">復元</button>
+      <button class="btn gray" id="clearBtn">データクリア</button>
+      <input id="restoreFile" type="file" accept=".json,application/json" hidden>
+    </div>
+  </div>
+
+  <div class="card" id="analysis">
+    <div class="filters">
+      <div class="field"><label>開始日</label><input type="date" id="from"></div>
+      <div class="field"><label>終了日</label><input type="date" id="to"></div>
+      <div class="field"><label>時間</label><select id="time"><option value="">すべて</option><option>11</option><option>15</option><option>19</option></select></div>
+      <div class="field"><label>店舗</label><select id="store"><option value="">すべて</option></select></div>
+      <div class="field"><label>貸玉</label><select id="rate"><option value="">すべて</option></select></div>
+      <div class="field"><label>比較</label><select id="base"><option value="1">前日</option><option value="7" selected>前週</option><option value="28">4週前</option><option value="month">前月同日</option></select></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>帯広店 時間帯比較（最新日）</b>
+    <div class="compare" id="latestCompare" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card"><b>貸玉別 客数・稼働率・シェア比較</b><div id="rateCompare" class="scroll" style="margin-top:10px"></div></div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>帯広店 客数推移</b><span class="small" id="chartLabel"></span></div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="card">
+    <b>店舗別 最新比較</b>
+    <div id="ranking" class="scroll" style="margin-top:10px;max-height:320px"></div>
+  </div>
+
+  <div class="card" id="detail">
+    <div class="tabs">
+      <button class="tab active" data-tab="summary">店舗総合</button>
+      <button class="tab" data-tab="records">貸玉別</button>
+      <button class="tab" data-tab="specials">注目機種群</button>
+    </div>
+    <div id="tableWrap" class="scroll" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div class="bottomnav">
+  <button class="active" data-target="home">ホーム</button>
+  <button data-target="analysis">分析</button>
+  <button data-target="detail">一覧</button>
+</div>
+
+<div class="install-banner" id="installBanner"><b>ホーム画面に追加できます</b><div class="small" style="color:#dce7ff;margin-top:3px">通常のアプリのようにアイコンから起動できます。</div><div class="row" style="margin-top:8px"><button class="btn" id="installBtn">インストール</button><button class="btn gray" id="installClose">閉じる</button></div></div>
+
+<script type="module" src="./pwa.js"></script>
+</body>
+</html>
