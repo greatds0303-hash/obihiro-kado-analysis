@@ -56,12 +56,13 @@ async function decodeVmg(arrayBuffer){
 function uniq(a){return[...new Set(a)].sort((x,y)=>String(x).localeCompare(String(y),'ja',{numeric:true}))}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fillSelect(id,vals,preferred){const el=$(id),cur=el.value;el.innerHTML='<option value="">すべて</option>'+vals.map(v=>`<option>${esc(v)}</option>`).join('');if(vals.includes(cur))el.value=cur;else if(preferred&&vals.includes(preferred))el.value=preferred}
-function filtered(type){const arr=S[type==='summary'?'summaries':type],f=$('from').value,t=$('to').value,tm=$('time').value,st=$('store').value,rt=$('rate').value;return arr.filter(r=>(!f||r.date>=f)&&(!t||r.date<=t)&&(!tm||String(r.time)===tm)&&(!st||r.store===st)&&(!rt||!('rate'in r)||r.rate===rt))}
+function rateCategory(rate){return ['12.5円S','20円S'].includes(rate)?'20スロ':rate}
+function filtered(type){const arr=S[type==='summary'?'summaries':type],f=$('from').value,t=$('to').value,tm=$('time').value,st=$('store').value,rt=$('rate').value;return arr.filter(r=>(!f||r.date>=f)&&(!t||r.date<=t)&&(!tm||String(r.time)===tm)&&(!st||r.store===st)&&(!rt||!('rate'in r)||rateCategory(r.rate)===rt))}
 function dayDiff(date,days){return comparisonDate(date,String(days))}
 function fmtDelta(v){if(v==null||Number.isNaN(v))return '-';return(v>0?'+':'')+v}
 function updateAll(){
   const dates=uniq(S.summaries.map(x=>x.date)),stores=uniq(S.summaries.map(x=>x.store));$('kEmails').textContent=S.emails.toLocaleString();$('kDays').textContent=dates.length.toLocaleString();$('kRecords').textContent=S.records.length.toLocaleString();$('kStores').textContent=stores.length;$('kRange').textContent=dates.length?`${dates[0].slice(5).replace('-','/')}〜${dates.at(-1).slice(5).replace('-','/')}`:'-';
-  fillSelect('store',stores,TARGET);fillSelect('rate',uniq(S.records.map(x=>x.rate)));if(dates.length&&autoRange){$('from').value=dates[0];$('to').value=dates.at(-1)}
+  fillSelect('store',stores,TARGET);fillSelect('rate',uniq(S.records.map(x=>rateCategory(x.rate))));if(dates.length&&autoRange){$('from').value=dates[0];$('to').value=dates.at(-1)}
   const latest11=[...S.summaries].filter(x=>x.store===TARGET&&x.time===11).sort((a,b)=>b.date.localeCompare(a.date))[0];$('kLatest').textContent=latest11?latest11.customers.toLocaleString():'-';renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();refreshNetwork()
 }
 
@@ -97,10 +98,38 @@ function renderTable(){
   else if(type==='summary')h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>総台数</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${r.storeTotal}</td><td><b>${r.customers}</b></td><td>${r.util}%</td><td>${r.share??''}${r.share!=null?'%':''}</td></tr>`).join('')+'</tbody></table>';
   else h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>機種群</th><th>台数</th><th>客数</th><th>稼働率</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${esc(r.group)}</td><td>${r.machines}</td><td><b>${r.customers}</b></td><td>${r.util}%</td></tr>`).join('')+'</tbody></table>';$('tableWrap').innerHTML=h||'<div class="msg">該当データなし</div>'
 }
+const chartHidden=new Set();
+const chartColors=['#0f62fe','#c0392b','#15803d','#9333ea','#b45309','#0e7490','#be185d','#475569'];
 function drawChart(){
-  const c=$('chart'),ctx=c.getContext('2d'),dpr=window.devicePixelRatio||1,W=c.clientWidth||1000,H=260;c.width=W*dpr;c.height=H*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);let rows=filtered('summaries').filter(r=>r.store===TARGET);const tm=$('time').value?+$('time').value:11;rows=rows.filter(r=>r.time===tm).sort((a,b)=>a.date.localeCompare(b.date));$('chartLabel').textContent=`${tm}時`;if(!rows.length){ctx.fillStyle='#667085';ctx.font='14px sans-serif';ctx.fillText('表示できるデータがありません',20,40);return}
-  const pad={l:46,r:18,t:18,b:34},max=Math.max(...rows.map(r=>r.customers),1);ctx.strokeStyle='#d9deea';ctx.lineWidth=1;ctx.font='11px sans-serif';ctx.fillStyle='#667085';for(let k=0;k<=4;k++){const y=pad.t+(H-pad.t-pad.b)*k/4;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();ctx.fillText(Math.round(max*(1-k/4)),7,y+4)}const x=i=>pad.l+(W-pad.l-pad.r)*(rows.length===1?.5:i/(rows.length-1)),y=v=>pad.t+(H-pad.t-pad.b)*(1-v/max);ctx.strokeStyle='#0f62fe';ctx.lineWidth=2;ctx.beginPath();rows.forEach((r,i)=>i?ctx.lineTo(x(i),y(r.customers)):ctx.moveTo(x(i),y(r.customers)));ctx.stroke();ctx.fillStyle='#0f62fe';rows.forEach((r,i)=>{ctx.beginPath();ctx.arc(x(i),y(r.customers),2.5,0,Math.PI*2);ctx.fill()});const step=Math.max(1,Math.ceil(rows.length/8));ctx.fillStyle='#667085';rows.forEach((r,i)=>{if(i%step===0||i===rows.length-1)ctx.fillText(r.date.slice(5).replace('-','/'),x(i)-14,H-10)})
+ const tm=+$('time').value||11,rate=$('rate').value;
+ const rows=S[rate?'records':'summaries'].filter(r=>r.time===tm&&(!rate||rateCategory(r.rate)===rate)&&(!$('from').value||r.date>=$('from').value)&&(!$('to').value||r.date<=$('to').value));
+ const stores=uniq(rows.map(r=>r.store)).sort((a,b)=>a===TARGET?-1:b===TARGET?1:a.localeCompare(b,'ja'));
+ $('chartLabel').textContent=`${tm}時 / ${rate||'店舗総合'}`;
+ $('chartStores').innerHTML=stores.map((store,i)=>`<label style="color:${chartColors[i%chartColors.length]};display:flex;align-items:center;gap:6px;padding:8px"><input type="checkbox" data-store="${esc(store)}" ${chartHidden.has(store)?'':'checked'}>${esc(store)}</label>`).join('');
+ const selected=stores.filter(store=>!chartHidden.has(store));
+ const dates=uniq(rows.map(r=>r.date));
+ for(const [id,key,unit] of [['chart','customers','名'],['utilChart','util','%']]){
+  const c=$(id),ctx=c.getContext('2d'),dpr=window.devicePixelRatio||1,W=c.clientWidth||390,H=260;
+  c.width=W*dpr;c.height=H*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
+  c.setAttribute('aria-label',`${selected.length}店舗 ${tm}時 ${rate||'店舗総合'} ${key==='customers'?'客数':'稼働率'}推移`);
+  const values=rows.filter(r=>selected.includes(r.store)&&Number.isFinite(r[key])).map(r=>r[key]);
+  ctx.font='11px sans-serif';ctx.fillStyle='#667085';
+  if(!values.length){ctx.fillText('表示できるデータがありません',20,40);continue;}
+  const pad={l:46,r:18,t:18,b:34},max=Math.max(...values,key==='util'?100:1);
+  const x=i=>pad.l+(W-pad.l-pad.r)*(dates.length===1?.5:i/(dates.length-1)),y=v=>pad.t+(H-pad.t-pad.b)*(1-v/max);
+  ctx.strokeStyle='#d9deea';ctx.lineWidth=1;
+  for(let k=0;k<=4;k++){const yy=pad.t+(H-pad.t-pad.b)*k/4;ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(W-pad.r,yy);ctx.stroke();ctx.fillText(Math.round(max*(1-k/4))+unit,0,yy+4);}
+  for(const store of selected){
+   const data=new Map(rows.filter(r=>r.store===store).map(r=>[r.date,r]));
+   ctx.strokeStyle=ctx.fillStyle=chartColors[stores.indexOf(store)%chartColors.length];ctx.lineWidth=store===TARGET?3:2;ctx.beginPath();let connected=false;
+   dates.forEach((date,i)=>{const v=data.get(date)?.[key];if(!Number.isFinite(v)){connected=false;return;}if(connected)ctx.lineTo(x(i),y(v));else ctx.moveTo(x(i),y(v));connected=true;});ctx.stroke();
+   dates.forEach((date,i)=>{const v=data.get(date)?.[key];if(!Number.isFinite(v))return;ctx.beginPath();ctx.arc(x(i),y(v),3,0,Math.PI*2);ctx.fill();});
+  }
+  ctx.fillStyle='#667085';const step=Math.max(1,Math.ceil(dates.length/Math.max(2,Math.floor(W/65))));
+  dates.forEach((date,i)=>{if(i%step===0||i===dates.length-1)ctx.fillText(date.slice(5).replace('-','/'),x(i)-14,H-10);});
+ }
 }
+$('chartStores').addEventListener('change',event=>{const el=event.target;if(!el.matches('input[data-store]'))return;if(el.checked)chartHidden.delete(el.dataset.store);else chartHidden.add(el.dataset.store);drawChart();});
 function csvEscape(v){v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function exportCsv(){const type=S.tab,rows=filtered(type);if(!rows.length){alert('出力するデータがありません');return}let cols=type==='records'?[['date','日付'],['time','時間'],['store','店舗'],['rate','貸玉'],['machines','台数'],['male','男性'],['female','女性'],['customers','客数'],['util','稼働率%'],['share','客数シェア%']]:type==='summary'?[['date','日付'],['time','時間'],['store','店舗'],['storeTotal','総台数'],['customers','客数'],['util','稼働率%'],['share','客数シェア%']]:[['date','日付'],['time','時間'],['store','店舗'],['group','機種群'],['machines','台数'],['customers','客数'],['util','稼働率%']];const csv='\ufeff'+cols.map(x=>x[1]).join(',')+'\n'+rows.map(r=>cols.map(c=>csvEscape(r[c[0]])).join(',')).join('\n');download(new Blob([csv],{type:'text/csv;charset=utf-8'}),`帯広店_稼働メール_${type}_${new Date().toISOString().slice(0,10)}.csv`)}
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}

@@ -54,3 +54,27 @@ test('保留送信が拒否されてもサーバーの最新データを表示',
  await page.locator('details').filter({has:page.locator('#connectionMode')}).locator('summary').click();await page.locator('#connectionMode').selectOption('server');
  await expect(page.locator('#tableWrap')).toContainText('2026-10-06');await expect(page.locator('#syncError')).toContainText('import failed');
 });
+test('競合店の客数と稼働率を同時に表示して店舗を切り替える',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');
+ await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();
+ await expect(page.locator('#chartStores input')).toHaveCount(2);
+ await expect(page.locator('#chartStores input:checked')).toHaveCount(2);
+ await expect(page.locator('#utilChart')).toBeVisible();
+ await expect(page.locator('#chart')).toHaveAttribute('aria-label',/2店舗/);
+ await page.locator('#chartStores input').last().uncheck();
+ await expect(page.locator('#chart')).toHaveAttribute('aria-label',/1店舗/);
+ await page.locator('#rate').selectOption('7.5円S');
+ await expect(page.locator('#chartLabel')).toContainText('7.5円S');
+ await expect(page.locator('#chartStores')).toContainText('競合店');
+ await expect(page.locator('#chartStores')).not.toContainText('イーグル');
+ await page.locator('#chartStores input').check();
+ await expect(page.locator('#utilChart')).toHaveAttribute('aria-label',/1店舗.*7.5円S/);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+});
+test('12.5円Sを20スロカテゴリーとして表示する',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();
+ await page.locator('#rate').selectOption({label:'20スロ'});
+ await expect(page.locator('#chartStores')).toContainText('イーグル');
+ await page.locator('[data-tab="records"]').click();
+ await expect(page.locator('#tableWrap')).toContainText('34');
+});
