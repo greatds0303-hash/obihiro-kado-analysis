@@ -15,13 +15,23 @@ export function createImapSource(config,{Client=ImapFlow}={}){
    const query=same?{uid:`${cursor.uid+1}:*`}:{since:new Date(`${since}T00:00:00Z`)};
    const found=await client.search(query,{uid:true});
    const uids=(found||[]).filter(uid=>!same||uid>cursor.uid).sort((a,b)=>a-b);
-   const limited=uids.slice(0,500),messages=[];
-   if(limited.length)for await(const msg of client.fetch(limited,{source:true,internalDate:true,uid:true},{uid:true})){
-    if(msg.source.length>10*1024*1024)throw Error('メールのサイズが上限を超えました');
+   const limited=uids.slice(0,500),messages=[],metadata=[];
+   if(limited.length)for await(const msg of client.fetch(limited,{envelope:true,size:true,uid:true},{uid:true}))metadata.push(msg);
+   metadata.sort((a,b)=>a.uid-b.uid);
+   const selected=[];let bytes=0,hasMore=uids.length>limited.length;
+   for(const msg of metadata){
+    const sender=msg.envelope?.from?.[0]?.address||'';
+    if(config.sender&&sender.toLowerCase()!==config.sender.toLowerCase()){messages.push({uid:msg.uid,skipReason:'sender'});continue;}
+    if(msg.size>10*1024*1024){messages.push({uid:msg.uid,skipReason:'oversized'});continue;}
+    if(bytes+(msg.size||0)>50*1024*1024){hasMore=true;break;}
+    bytes+=msg.size||0;selected.push(msg.uid);
+   }
+   if(selected.length)for await(const msg of client.fetch(selected,{source:true,internalDate:true,uid:true},{uid:true})){
+    if(msg.source.length>10*1024*1024){messages.push({uid:msg.uid,skipReason:'oversized'});continue;}
     const parsed=await simpleParser(msg.source,{skipHtmlToText:false,skipTextToHtml:true});
     messages.push({uid:msg.uid,messageId:parsed.messageId||null,subject:parsed.subject||'',sender:parsed.from?.value?.[0]?.address||'',receivedAt:msg.internalDate?new Date(msg.internalDate).toISOString():parsed.date?.toISOString()||null,text:parsed.text||''});
    }
-   return {uidValidity,messages,hasMore:uids.length>limited.length};
+   return {uidValidity,messages:messages.sort((a,b)=>a.uid-b.uid),hasMore};
   }finally{
    lock?.release();try{await client.logout();}catch{client.close();}
   }

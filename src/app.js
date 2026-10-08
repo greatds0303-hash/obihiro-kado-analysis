@@ -17,7 +17,7 @@ export function createApp({repository,syncService,config}){
   }
   next();
  });
- app.use(express.json({limit:'16kb'}));
+ app.use(express.json({limit:'256kb'}));
  app.post('/api/session',auth.login);app.delete('/api/session',auth.logout);
  app.use('/api',auth.require);
  const filters=req=>{
@@ -37,6 +37,15 @@ export function createApp({repository,syncService,config}){
   if(req.body?.since!==undefined&&(typeof req.body.since!=='string'||!validDate(req.body.since)))return res.status(400).json({error:'取得開始日が不正です'});
   try{res.json(await syncService.sync({since:req.body?.since}));}
   catch(e){res.status(e.code==='SYNC_BUSY'?409:e.code==='IMAP_NOT_CONFIGURED'?503:502).json({error:e.message});}
+ });
+ app.post('/api/import/email',(req,res)=>{
+  const text=req.body?.text;
+  if(typeof text!=='string'||!text.trim()||Buffer.byteLength(text,'utf8')>128*1024)return res.status(400).json({error:'128KB以下のメール本文を入力してください'});
+  try{
+   const result=ingestEmail(repository,{text,messageId:null,subject:'',sender:'',receivedAt:null});
+   if(result.outcome==='ignored')return res.status(400).json({error:'対象の稼働報告が見つかりません。日時と店舗名を含めて貼り付けてください'});
+   res.json(result);
+  }catch{res.status(400).json({error:'本文を解析できません。日時と店舗名・客数の記載を確認してください'});}
  });
  app.post('/api/import/vmg',express.raw({type:'application/octet-stream',limit:'20mb'}),async(req,res)=>{
   if(!Buffer.isBuffer(req.body))return res.status(415).json({error:'VMGをapplication/octet-streamで送信してください'});

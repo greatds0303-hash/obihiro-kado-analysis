@@ -2,7 +2,7 @@ import {parseReport,normalizeText,normalizeStore,validDate} from './report-parse
 import {comparisonDate,compareRows,mergeRows} from './analysis.js';
 import {request} from './api-client.js';
 
-const S={records:[],summaries:[],specials:[],mailKeys:new Set(),emails:0,pendingVMG:[],syncSnapshot:null,tab:'summary'};
+const S={records:[],summaries:[],specials:[],mailKeys:new Set(),emails:0,pendingVMG:[],pendingEmails:[],connectionMode:'manual',syncSnapshot:null,tab:'summary'};
 const TARGET='イーグル スクエア帯広店';
 const $=id=>document.getElementById(id);
 const DB_NAME='obihiro-kado-db', STORE='state';
@@ -15,13 +15,15 @@ function cleanRows(rows,kind){
  return rows.filter(r=>r&&validDate(r.date)&&[11,15,19].includes(Number(r.time))&&typeof r.store==='string'&&typeof r.customers==='number'&&Number.isFinite(r.customers)&&r.customers>=0&&(kind!=='records'||typeof r.rate==='string')&&(kind!=='specials'||typeof r.group==='string')).map(r=>{const row={...r,time:Number(r.time),store:normalizeStore(r.store),derived:Boolean(r.derived)};for(const key of ['storeTotal','machines','male','female','util','share'])row[key]=Number.isFinite(r[key])&&r[key]>=0?r[key]:null;row.mailId=typeof r.mailId==='string'?r.mailId:'';return row;});
 }
 async function saveState(){
- let db;try{db=await openDb();const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({records:S.records,summaries:S.summaries,specials:S.specials,mailKeys:[...S.mailKeys],emails:S.emails,pendingVMG:S.pendingVMG,syncSnapshot:S.syncSnapshot},'main');await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=()=>j(tx.error)});return true;}
+ let db;try{db=await openDb();const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({records:S.records,summaries:S.summaries,specials:S.specials,mailKeys:[...S.mailKeys],emails:S.emails,pendingVMG:S.pendingVMG,pendingEmails:S.pendingEmails,connectionMode:S.connectionMode,syncSnapshot:S.syncSnapshot},'main');await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=()=>j(tx.error)});return true;}
  catch{$('storageStatus').textContent='端末内保存に失敗しました。バックアップを保存してください。';return false;}finally{db?.close();}
 }
 function useSaved(data){
  for(const kind of ['records','summaries','specials'])S[kind]=cleanRows(data[kind],kind);
  S.mailKeys=new Set(Array.isArray(data.mailKeys)?data.mailKeys.filter(k=>typeof k==='string'):[]);
  S.emails=S.mailKeys.size||Number(data.emails)||0;
+ S.connectionMode=data.connectionMode==='server'?'server':'manual';
+ S.pendingEmails=Array.isArray(data.pendingEmails)?data.pendingEmails.filter(p=>typeof p?.id==='string'&&typeof p?.text==='string'):[];
  S.syncSnapshot=data.syncSnapshot||null;if(S.syncSnapshot)displaySyncStatus(S.syncSnapshot);
  S.pendingVMG=Array.isArray(data.pendingVMG)?data.pendingVMG.filter(p=>typeof p?.id==='string'&&typeof p?.raw==='string'):[];
 }
@@ -31,6 +33,7 @@ async function loadState(){
 }
 async function decodeVmg(arrayBuffer){
  const raw=new TextDecoder('utf-8').decode(arrayBuffer),chunks=raw.split(/BEGIN:VMSG/i).slice(1);let emails=0,duplicates=0;
+ const staged={records:[],summaries:[],specials:[],mailKeys:new Set(S.mailKeys)};
  if(!chunks.length)throw Error('VMG形式のメールが見つかりません');
  for(const chunk of chunks){
   const mm=chunk.match(/Content-Type:\s*text\/plain;\s*charset="?([^"\r\n;]+)"?[\s\S]*?Content-Transfer-Encoding:\s*base64\s*\r?\n\r?\n([\s\S]*?)(?:\r?\nEND:VBODY)/i);
@@ -42,10 +45,12 @@ async function decodeVmg(arrayBuffer){
   const normalized=new TextEncoder().encode(normalizeText(body).replace(/\s+/g,''));
   const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',normalized))].map(n=>n.toString(16).padStart(2,'0')).join('');
   const id=chunk.match(/Message-ID:[ \t]*([^\r\n]+)/i)?.[1]?.trim()||`hash:${hash}`;
-  if(S.mailKeys.has(id)||S.mailKeys.has(`hash:${hash}`)||S.summaries.some(r=>r.mailHash===hash)){duplicates++;continue;}
-  S.mailKeys.add(id);emails++;
-  for(const kind of ['records','summaries','specials'])S[kind]=mergeRows(S[kind],report[kind].map(r=>({...r,mailId:id,mailHash:hash})),kind);
+  if(staged.mailKeys.has(id)||staged.mailKeys.has(`hash:${hash}`)||S.summaries.some(r=>r.mailHash===hash)){duplicates++;continue;}
+  staged.mailKeys.add(id);emails++;
+  for(const kind of ['records','summaries','specials'])staged[kind]=mergeRows(staged[kind],report[kind].map(r=>({...r,mailId:id,mailHash:hash})),kind);
  }
+ for(const kind of ['records','summaries','specials'])S[kind]=mergeRows(S[kind],staged[kind],kind);
+ for(const key of staged.mailKeys)S.mailKeys.add(key);
  S.emails=S.mailKeys.size;return{emails,duplicates,totalChunks:chunks.length,raw};
 }
 function uniq(a){return[...new Set(a)].sort((x,y)=>String(x).localeCompare(String(y),'ja',{numeric:true}))}
@@ -108,16 +113,17 @@ async function loadFiles(files){
   }catch(e){errors.push(`${f.name}: ${e.message}`);}
  }
  updateAll();await saveState();$('status').textContent=`読み込み完了：${files.length}ファイル / 新規メール ${added}通 / 重複 ${duplicates}通 / VMG内 ${total}通${errors.length?' / 失敗: '+errors.join(', '):''}`;
- if(navigator.onLine)await connectApi();
+ if(navigator.onLine&&S.connectionMode==='server')await connectApi();
 }
-function backup(){const data={version:2,exportedAt:new Date().toISOString(),records:S.records,summaries:S.summaries,specials:S.specials,mailKeys:[...S.mailKeys],emails:S.emails,pendingVMG:S.pendingVMG,syncSnapshot:S.syncSnapshot};download(new Blob([JSON.stringify(data)],{type:'application/json'}),`帯広店_稼働分析_バックアップ_${new Date().toISOString().slice(0,10)}.json`);}
+function backup(){const data={version:2,exportedAt:new Date().toISOString(),records:S.records,summaries:S.summaries,specials:S.specials,mailKeys:[...S.mailKeys],emails:S.emails,pendingVMG:S.pendingVMG,pendingEmails:S.pendingEmails,connectionMode:S.connectionMode,syncSnapshot:S.syncSnapshot};download(new Blob([JSON.stringify(data)],{type:'application/json'}),`帯広店_稼働分析_バックアップ_${new Date().toISOString().slice(0,10)}.json`);}
 async function restore(file){
  try{await initialized;if(file.size>20*1024*1024)throw Error();const d=JSON.parse(await file.text());if(!Array.isArray(d.summaries)||!Array.isArray(d.records)||!Array.isArray(d.specials))throw Error();useSaved(d);await saveState();updateAll();$('status').textContent='バックアップを復元しました。';}
  catch{alert('復元に失敗しました。バックアップJSONを確認してください。');}
 }
 function refreshNetwork(){
- $('networkStatus').textContent=!navigator.onLine?'オフライン — 最終取得データを表示中':!networkReachable?'サーバー未接続 — 最終取得データを表示中':'オンライン';
- $('syncBtn').disabled=busy||!navigator.onLine||!networkReachable;$('pendingStatus').textContent=`VMG未送信 ${S.pendingVMG.length}件`;
+ $('serverPanel').hidden=S.connectionMode!=='server';$('connectionMode').value=S.connectionMode;
+ $('networkStatus').textContent=S.connectionMode==='manual'?(navigator.onLine?'手動取込・端末内保存':'オフライン — 最終取得データを表示中'):!navigator.onLine?'オフライン — 最終取得データを表示中':!networkReachable?'サーバー未接続 — 最終取得データを表示中':'オンライン';
+ $('syncBtn').disabled=busy||!navigator.onLine||!networkReachable;$('pendingStatus').textContent=`VMG未送信 ${S.pendingVMG.length}件 / 本文未送信 ${S.pendingEmails.length}件`;
 }
 function handleApiError(error){
  if(!error.status)networkReachable=false;
@@ -125,10 +131,16 @@ function handleApiError(error){
  if(error.status===401)$('loginForm').hidden=false;
 }
 async function flushPending(){
- for(const entry of [...S.pendingVMG]){
-  await request('/api/import/vmg',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:new TextEncoder().encode(entry.raw)});
-  S.pendingVMG=S.pendingVMG.filter(p=>p.id!==entry.id);await saveState();refreshNetwork();
+ let failed=null;
+ for(const entry of [...S.pendingEmails]){
+  try{await request('/api/import/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:entry.text})});S.pendingEmails=S.pendingEmails.filter(p=>p.id!==entry.id);await saveState();refreshNetwork();}
+  catch(e){failed||=e;if(e.status===401)break;}
  }
+ for(const entry of [...S.pendingVMG]){
+  try{await request('/api/import/vmg',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:new TextEncoder().encode(entry.raw)});S.pendingVMG=S.pendingVMG.filter(p=>p.id!==entry.id);await saveState();refreshNetwork();}
+  catch(e){failed||=e;if(e.status===401)break;}
+ }
+ if(failed)throw failed;
 }
 function applyServerData(data){
  for(const kind of ['summaries','records','specials'])S[kind]=mergeRows(S[kind],cleanRows(data[kind],kind),kind);
@@ -140,17 +152,17 @@ function displaySyncStatus(s){
  S.syncSnapshot=s;
  const when=s.lastSuccess?new Date(s.lastSuccess).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'}):'未同期';
  $('syncStatus').textContent=`最終同期 ${when} / 新規 ${s.newCount||0}通 / 重複 ${s.duplicateCount||0}通${s.hasMore?' / 残りがあります。再度同期してください':''}`;
- if(s.error)$('syncError').textContent=s.error;else if(s.configured===false)$('syncError').textContent='メール自動取得は未設定です。サーバー側にdocomo IMAP専用ID・パスワードを設定してください。';
+ if(s.warning)$('syncError').textContent=[s.error,s.warning].filter(Boolean).join(' / ');else if(s.error)$('syncError').textContent=s.error;else if(s.configured===false)$('syncError').textContent='メール自動取得は未設定です。サーバー側にdocomo IMAP専用ID・パスワードを設定してください。';
 }
 async function connectApi(){
- if(!navigator.onLine)return;try{
-  await flushPending();const data=await request('/api/data');applyServerData(data);displaySyncStatus(await request('/api/status'));networkReachable=true;await saveState();$('loginForm').hidden=true;
+ if(!navigator.onLine||S.connectionMode!=='server')return;let uploadError=null;try{await flushPending();}catch(e){uploadError=e;}try{
+  const data=await request('/api/data');applyServerData(data);displaySyncStatus(await request('/api/status'));networkReachable=true;await saveState();$('loginForm').hidden=true;if(uploadError)handleApiError(uploadError);
  }catch(e){handleApiError(e);}refreshNetwork();
 }
 async function syncMail(){
  await initialized;if(busy||!navigator.onLine)return;busy=true;refreshNetwork();$('syncError').textContent='';$('syncStatus').textContent='メールを同期しています…';
  try{
-  await flushPending();const since=$('syncSince').value;await request('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(since?{since}:{})});
+  const since=$('syncSince').value;await request('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(since?{since}:{})});
   $('syncSince').value='';await connectApi();
  }catch(e){handleApiError(e);try{displaySyncStatus(await request('/api/status'));}catch{}}
  finally{busy=false;refreshNetwork();}
@@ -163,7 +175,7 @@ window.addEventListener('online',async()=>{await initialized;refreshNetwork();$(
 const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();file.onchange=e=>loadFiles([...e.target.files]);['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
 ['from','to','time','store','rate','base'].forEach(id=>$(id).addEventListener('change',()=>{if(['from','to'].includes(id))autoRange=false;renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;renderTable()});
-$('csvBtn').onclick=exportCsv;$('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=e=>e.target.files[0]&&restore(e.target.files[0]);$('clearBtn').onclick=async()=>{if(confirm('この端末のデータと未送信VMGをクリアしますか？サーバーのデータは削除されません。')){S.records=[];S.summaries=[];S.specials=[];S.mailKeys.clear();S.emails=0;S.pendingVMG=[];autoRange=true;$('from').value='';$('to').value='';await saveState();updateAll();$('status').textContent='データをクリアしました。'}};
+$('csvBtn').onclick=exportCsv;$('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=e=>e.target.files[0]&&restore(e.target.files[0]);$('clearBtn').onclick=async()=>{if(confirm('この端末のデータと未送信VMGをクリアしますか？サーバーのデータは削除されません。')){S.records=[];S.summaries=[];S.specials=[];S.mailKeys.clear();S.emails=0;S.pendingVMG=[];S.pendingEmails=[];autoRange=true;$('from').value='';$('to').value='';await saveState();updateAll();$('status').textContent='データをクリアしました。'}};
 document.querySelectorAll('.bottomnav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.bottomnav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById(b.dataset.target).scrollIntoView({behavior:'smooth',block:'start'})});
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBanner').classList.add('show')});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBanner').classList.remove('show')}};$('installClose').onclick=()=>$('installBanner').classList.remove('show');
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
@@ -174,3 +186,25 @@ setInterval(()=>{if(!busy&&navigator.onLine&&!document.hidden)connectApi();},600
 
 
 setInterval(()=>{if(!networkReachable&&!busy&&navigator.onLine&&!document.hidden)connectApi();},3000);
+
+async function importPastedMail(){
+ await initialized;const input=$('mailText'),text=input.value;
+ try{
+  if(!text.trim()||new TextEncoder().encode(text).length>128*1024)throw Error('128KB以下の稼働報告メール本文を入力してください');
+  if(!normalizeText(text).replace(/\s+/g,'').includes('イーグルスクエア帯広店'))throw Error('帯広店の店舗名が見つかりません。本文全体を貼り付けてください');
+  const report=parseReport(text);if(!report.summaries.length)throw Error('日時と店舗名・客数が見つかりません。本文全体を貼り付けてください');
+  const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(normalizeText(text).replace(/\s+/g,''))))].map(n=>n.toString(16).padStart(2,'0')).join('');
+  const id=`hash:${hash}`;
+  if(S.mailKeys.has(id)||S.summaries.some(r=>r.mailHash===hash)){$('pasteStatus').textContent='重複メールです。既に取り込まれています。';input.value='';return;}
+  for(const kind of ['records','summaries','specials'])S[kind]=mergeRows(S[kind],report[kind].map(r=>({...r,mailId:id,mailHash:hash})),kind);
+  S.mailKeys.add(id);S.emails=S.mailKeys.size;S.pendingEmails.push({id:crypto.randomUUID(),text});
+  updateAll();const saved=await saveState();
+  $('pasteStatus').textContent=saved?`取込完了：${report.summaries.length}件の店舗総合 / ${report.records.length}件の貸玉データを保存しました。`:'取込済みですが端末内保存に失敗しました。バックアップを保存してください。';
+  if(saved)input.value='';
+  if(S.connectionMode==='server'&&navigator.onLine)await connectApi();
+ }catch(e){$('pasteStatus').textContent=e.message;}
+}
+$('pasteImportBtn').onclick=importPastedMail;
+$('connectionMode').onchange=async event=>{
+ const mode=event.target.value;await initialized;S.connectionMode=mode;networkReachable=true;$('syncError').textContent='';refreshNetwork();await saveState();if(mode==='server')await connectApi();
+};

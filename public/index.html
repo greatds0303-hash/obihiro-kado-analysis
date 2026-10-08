@@ -37,12 +37,21 @@ canvas{width:100%;height:260px;display:block}.row{display:flex;gap:8px;flex-wrap
 
 <div class="wrap" id="home">
   <div class="card">
-    <div class="row" style="justify-content:space-between"><b>メール自動同期</b><span id="networkStatus" class="small" role="status"></span></div>
+    <div class="row" style="justify-content:space-between"><b>メール本文を取り込む</b><span id="networkStatus" class="small" role="status"></span></div>
+    <p class="small">ドコモメールで稼働報告を開き、本文をコピーして下の欄に貼り付けてください。日時・店舗名から末尾まで含めます。</p>
+    <label class="small" for="mailText">稼働報告メールの本文</label>
+    <textarea id="mailText" rows="6" maxlength="131072" placeholder="2026/10/06 11時&#10;イーグル スクエア帯広店 （516台）&#10;…" style="display:block;width:100%;margin:6px 0 10px;padding:10px;border:1px solid #d9deea;border-radius:8px;font:inherit;font-size:14px"></textarea>
+    <button class="btn" id="pasteImportBtn">本文を取り込む</button>
+    <div class="msg" id="pasteStatus" role="status">手動取込はこのスマホに保存します。メールの認証情報は不要です。</div>
+    <div class="small bad" id="storageStatus" role="alert"></div>
+    <details style="margin-top:10px"><summary class="small">自動同期を使う場合の設定</summary><label for="connectionMode" class="small">データ連携</label><select id="connectionMode" style="max-width:100%;padding:9px"><option value="manual">手動（この端末に保存）</option><option value="server">サーバー連携（自動同期）</option></select><p class="small">サーバー連携にはメール取得用のサーバー設定が必要です。</p></details>
+  </div>
+  <div class="card" id="serverPanel" hidden>
+    <div class="row" style="justify-content:space-between"><b>メール自動同期</b></div>
     <div class="row" style="margin-top:9px"><button class="btn" id="syncBtn">メール同期</button><span class="small" id="pendingStatus"></span></div>
     <details style="margin-top:9px"><summary class="small">過去メールの取得</summary><label class="small" for="syncSince">この日から再取得（未指定は新着のみ）</label><input type="date" id="syncSince"></details>
     <div class="msg" id="syncStatus" role="status">同期状態を確認しています…</div>
     <div class="small bad" id="syncError" role="alert" style="margin-top:6px"></div>
-    <div class="small bad" id="storageStatus" role="alert"></div>
     <form id="loginForm" hidden style="margin-top:9px"><label class="small" for="appPassword">アプリのログインパスワード</label><div class="row"><input type="password" id="appPassword" autocomplete="off" required style="max-width:100%;padding:9px"><button class="btn" type="submit">ログイン</button></div><div class="small">docomoのパスワードはこの画面に入力しないでください。</div></form>
   </div>
   <div class="card">

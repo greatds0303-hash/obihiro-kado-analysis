@@ -54,3 +54,30 @@ test('cronが東京時間の6回・停止可能',()=>{
  const stop=startScheduler({sync:async()=>({})},{schedule(s,fn,o){schedule=s;options=o;return {stop(){stopped=true;}};}});
  assert.equal(schedule,'10,30 11,15,19 * * *');assert.equal(options.timezone,'Asia/Tokyo');assert.equal(SCHEDULE,schedule);stop();assert.equal(stopped,true);
 });
+test('高いUIDから過去取得の先頭失敗後、通常同期で再試行する',async()=>{
+ const r=openRepository(':memory:');try{
+ r.setCursor('backfill',{uidValidity:'1',uid:100});let broken=true;
+ const s=createSyncService(r,{scope:'backfill',async fetch({cursor,since}){
+  assert.equal(since,'2025-01-01');
+  if(cursor?.uid>=100)return {uidValidity:'1',messages:[]};
+  return {uidValidity:'1',messages:[broken?{...message(1),text:'壊れたイーグルスクエア帯広店 稼働報告'}:message(1)]};
+ }});
+ await assert.rejects(s.sync({since:'2025-01-01'}));broken=false;
+ assert.equal((await s.sync()).newCount,1);assert.equal(r.getCursor('backfill').since,'2025-01-01');
+ }finally{r.close();}
+});
+test('取得開始日の変更は接続失敗時も保持する',async()=>{
+ const r=openRepository(':memory:');try{
+ r.setCursor('backfill',{uidValidity:'1',uid:100});let fail=true;
+ const s=createSyncService(r,{scope:'backfill',async fetch({cursor,since}){if(fail)throw Error('network');assert.equal(since,'2025-01-01');assert.ok(!cursor||cursor.uid===0);return {uidValidity:'2',messages:[message(1)]};}});
+ await assert.rejects(s.sync({since:'2025-01-01'}));fail=false;assert.equal((await s.sync()).newCount,1);
+ }finally{r.close();}
+});
+test('大きな未取込メールは警告を残し、前後の報告を進める',async()=>{
+ const r=openRepository(':memory:');try{
+ let messages=[message(1),{uid:2,skipReason:'oversized'},message(3,'07')];
+ const s=createSyncService(r,{scope:'large',async fetch(){return {uidValidity:'1',messages};}});
+ const result=await s.sync();assert.equal(result.newCount,2);assert.equal(result.skippedCount,1);assert.equal(r.getCursor('large').uid,3);assert.ok(s.status().warning);
+ messages=[];await s.sync();assert.ok(s.status().warning);assert.equal(s.status().unprocessedMessages.length,1);
+ }finally{r.close();}
+});

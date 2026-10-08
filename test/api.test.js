@@ -51,3 +51,10 @@ test('任意認証・HttpOnly Cookie・ログアウト・秘密を返さない',
  assert.equal((await fetch(f.base+'/api/status',{headers:{Cookie:cookie.split(';')[0]}})).status,401);
  }finally{await f.close();}
 });
+test('手動本文APIとIMAPが重複・壊れた本文を拒否',async()=>{
+ const f=await fixture();try{
+ let res=await fetch(f.base+'/api/import/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});assert.equal(res.status,200);assert.equal((await res.json()).outcome,'new');
+ res=await fetch(f.base+'/api/sync',{method:'POST'});assert.equal((await res.json()).duplicateCount,1);
+ assert.equal((await fetch(f.base+'/api/import/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'hello'})})).status,400);
+ }finally{await f.close();}
+});

@@ -26,3 +26,27 @@ test('UIDVALIDITY変更はsince検索に戻る・未着はfetchしない',async(
  const r=await createImapSource(config,{Client}).fetch({since:'2026-01-01',cursor:{uidValidity:'1',uid:100}});
  assert.ok(query.since instanceof Date);assert.equal(r.messages.length,0);assert.equal(fetchCalled,false);
 });
+test('無関係の大きな添付メールでも前後の報告を取得し進行',async()=>{
+ const fetched=[];
+ class Client{
+  constructor(){this.mailbox={uidValidity:1n};}on(){}async connect(){}async getMailboxLock(){return{release(){}};}async search(){return [1,2,3];}
+  async *fetch(uids,query){
+   for(const uid of uids){
+    if(query.source){fetched.push(uid);yield {uid,source:uid===2?Buffer.alloc(11*1024*1024):Buffer.from('From: square_obihiro@eaglegroup.co.jp\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nreport'),internalDate:new Date()};}
+    else yield {uid,size:uid===2?11*1024*1024:100,envelope:{from:[{address:uid===2?'friend@example.com':'square_obihiro@eaglegroup.co.jp'}],subject:'稼働報告'}};
+   }
+  }
+  async logout(){}
+ }
+ const batch=await createImapSource({...config,sender:'square_obihiro@eaglegroup.co.jp'},{Client}).fetch({since:'2026-01-01'});
+ assert.deepEqual(fetched,[1,3]);assert.equal(batch.messages.length,3);assert.equal(batch.messages[1].skipReason,'sender');
+});
+test('大きな対象メールは明示的な未取込として扱い後続を妨げない',async()=>{
+ class Client{
+  constructor(){this.mailbox={uidValidity:1n};}on(){}async connect(){}async getMailboxLock(){return{release(){}};}async search(){return [1];}
+  async *fetch(uids,query){if(query.source)yield {uid:1,source:Buffer.alloc(11*1024*1024)};else yield {uid:1,size:11*1024*1024,envelope:{from:[{address:'square_obihiro@eaglegroup.co.jp'}],subject:'稼働報告'}};}
+  async logout(){}
+ }
+ const batch=await createImapSource({...config,sender:'square_obihiro@eaglegroup.co.jp'},{Client}).fetch({since:'2026-01-01'});
+ assert.equal(batch.messages[0].skipReason,'oversized');
+});

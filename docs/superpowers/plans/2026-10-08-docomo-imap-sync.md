@@ -1,6 +1,6 @@
 # docomo IMAP同期 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 既存EAGLE帯広店PWAに安全なメール自動取得を統合し、VMG履歴と最新報告を重複なく分析できるようにする。
 
@@ -37,11 +37,11 @@
 
 **Interfaces:** `parseReport(text) -> {summaries, records, specials}`。各行は既存の`date,time,store,storeTotal,customers,util,share`を使用し、貸玉は`rate,machines,male,female`、注目群は`group,machines`を加える。`decodeVmg(buffer) -> EmailInput[]`。`EmailInput = {messageId,subject,sender,receivedAt,text,imapIdentity?}`。
 
-- [ ] 提供ZIPをpublicに原形で取り込み、秘密・DB・生成物のignoreを追加する。
-- [ ] 解析テストを書く：11/15/19時、全角括弧・数字・余分な空行、新種別`7.5円S`、複数店舗、総合計、注目群、欠落シェアはnull、対象外本文は空配列。VMGのbase64・Shift_JIS・Message-IDなしを含める。
-- [ ] `node --test test/parser.test.js`で実装なしの失敗を確認する。
-- [ ] 正規化と動的貸玉認識を実装する。総合計がない場合、判明した貸玉の客数合計と総台数から算出し、算出由来を付ける。客数シェアは推測しない。
-- [ ] 同コマンドが全テスト成功することを確認しコミットする。
+- [x] 提供ZIPをpublicに原形で取り込み、秘密・DB・生成物のignoreを追加する。
+- [x] 解析テストを書く：11/15/19時、全角括弧・数字・余分な空行、新種別`7.5円S`、複数店舗、総合計、注目群、欠落シェアはnull、対象外本文は空配列。VMGのbase64・Shift_JIS・Message-IDなしを含める。
+- [x] `node --test test/parser.test.js`で実装なしの失敗を確認する。
+- [x] 正規化と動的貸玉認識を実装する。総合計がない場合、判明した貸玉の客数合計と総台数から算出し、算出由来を付ける。客数シェアは推測しない。
+- [x] 同コマンドが全テスト成功することを確認しコミットする。
 
 ### Task 2: SQLite永続化と共通取込
 
@@ -49,11 +49,11 @@
 
 **Interfaces:** `openRepository(path) -> Repository`。`Repository.saveEmail(email, report) -> {duplicate, emailId}`、`query(kind,filters) -> rows`、`getStatus()`、`getCursor(scope)`、`setCursor(scope,cursor)`、`close()`。`ingestEmail(repository,email) -> {outcome:'new'|'duplicate'|'ignored'}`。
 
-- [ ] 一時DBで同メール2回、VMGとIMAPの重複、Message-ID欠落、異なるUIDVALIDITY、再起動保持、保存失敗時ロールバックのテストを書く。
-- [ ] `node --test test/db.test.js`で失敗を確認する。
-- [ ] emails、store_summary、rate_summary、special_group、sync_stateを作成する。UIDはスコープとUIDVALIDITYを含む一意キー、Message-IDと正規化本文ハッシュも重複キーにする。外部キー・検索インデックス・バインドSQLを使用する。
-- [ ] `ingestEmail`で対象判定、共通解析、保存を行う。未解析メールを成功扱いにしない。
-- [ ] 同コマンドで全テスト成功を確認しコミットする。
+- [x] 一時DBで同メール2回、VMGとIMAPの重複、Message-ID欠落、異なるUIDVALIDITY、再起動保持、保存失敗時ロールバックのテストを書く。
+- [x] `node --test test/db.test.js`で失敗を確認する。
+- [x] emails、store_summary、rate_summary、special_group、sync_stateを作成する。UIDはスコープとUIDVALIDITYを含む一意キー、Message-IDと正規化本文ハッシュも重複キーにする。外部キー・検索インデックス・バインドSQLを使用する。
+- [x] `ingestEmail`で対象判定、共通解析、保存を行う。未解析メールを成功扱いにしない。
+- [x] 同コマンドで全テスト成功を確認しコミットする。
 
 ### Task 3: IMAP・状態・定時同期
 
@@ -61,11 +61,11 @@
 
 **Interfaces:** `loadConfig(env) -> Config`、`createImapSource(config) -> source`、`source.fetch({since,cursor}) -> {messages,uidValidity}`、`createSyncService(repository,source) -> {sync({since}?),status()}`、`startScheduler(syncService) -> stop()`。sourceはメールとUID情報を返し、サービスが成功した範囲のカーソルを更新する。
 
-- [ ] 模擬sourceで接続成功／失敗、1通／複数／未着／対象外、再同期、VMG重複、UIDVALIDITY変更、同時同期、途中失敗後再試行をテストする。エラーにパスワードが含まれても公開状態に残さない。
-- [ ] `node --test test/sync.test.js`で失敗を確認する。
-- [ ] imapflowのメールボックスロックとUID検索、mailparserによるMIME解析、TLS、タイムアウト、必ずlogoutする処理を実装する。初回sinceは日本の暦日として扱う。
-- [ ] 一度に1同期のみ実行し、成功・失敗・未着を区別する。解析失敗位置を越えてカーソルを進めない。cron式`10,30 11,15,19 * * *`とtimezone`Asia/Tokyo`を設定する。
-- [ ] 同コマンドで全テスト成功を確認する。設定が安全に用意された場合だけ実docomoへ読み取り接続し、未設定なら未実施として記録する。コミットする。
+- [x] 模擬sourceで接続成功／失敗、1通／複数／未着／対象外、再同期、VMG重複、UIDVALIDITY変更、同時同期、途中失敗後再試行をテストする。エラーにパスワードが含まれても公開状態に残さない。
+- [x] `node --test test/sync.test.js`で失敗を確認する。
+- [x] imapflowのメールボックスロックとUID検索、mailparserによるMIME解析、TLS、タイムアウト、必ずlogoutする処理を実装する。初回sinceは日本の暦日として扱う。
+- [x] 一度に1同期のみ実行し、成功・失敗・未着を区別する。解析失敗位置を越えてカーソルを進めない。cron式`10,30 11,15,19 * * *`とtimezone`Asia/Tokyo`を設定する。
+- [x] 同コマンドで全テスト成功を確認する。設定が安全に用意された場合だけ実docomoへ読み取り接続し、未設定なら未実施として記録する。コミットする。
 
 ### Task 4: APIと認証境界
 
@@ -73,11 +73,11 @@
 
 **Interfaces:** `createApp({repository,syncService,config}) -> ExpressApp`。GET status/summary/rates/specials、POST sync（任意since）、POST import/vmg（サイズ制限付き）、GET data（既存PWA形式とmailKeys）。認証設定時はPOST sessionでログインしHttpOnly Cookieを発行する。
 
-- [ ] HTTPテストを書く：各APIの返却形式、日付・時刻・店舗・貸玉フィルタ、不正日付・過大ファイル・不正VMG、同期競合、秘密なし、認証必須時の401、別オリジンの更新リクエスト拒否。
-- [ ] `node --test test/api.test.js`で失敗を確認する。
-- [ ] API、静的配信、入力検証、サイズ上限、同一オリジンの更新制限、任意の認証を実装する。本番では安全な認証設定を要求し、CookieをSecureとする。
-- [ ] 起動・終了でDBとcronを管理する。DBファイルはpublic外に置く。
-- [ ] 同コマンドで全テスト成功を確認しコミットする。
+- [x] HTTPテストを書く：各APIの返却形式、日付・時刻・店舗・貸玉フィルタ、不正日付・過大ファイル・不正VMG、同期競合、秘密なし、認証必須時の401、別オリジンの更新リクエスト拒否。
+- [x] `node --test test/api.test.js`で失敗を確認する。
+- [x] API、静的配信、入力検証、サイズ上限、同一オリジンの更新制限、任意の認証を実装する。本番では安全な認証設定を要求し、CookieをSecureとする。
+- [x] 起動・終了でDBとcronを管理する。DBファイルはpublic外に置く。
+- [x] 同コマンドで全テスト成功を確認しコミットする。
 
 ### Task 5: 既存PWAとの統合と分析拡張
 
@@ -85,12 +85,12 @@
 
 **Interfaces:** `comparisonDate(date,period) -> date|null`（periodは1/7/28/month）、`compareRows(current,previous) -> {customers,util,share}`。APIデータを既存Sへレポートキーでマージし、端末内独自履歴は保持する。
 
-- [ ] 比較日付テストで東京時間の日付ずれ、閏年、31日の前月欠落、欠落比較値を検証する。ブラウザテストで起動時例外なし、総合一覧・CSV、VMG取込・バックアップ復元、同期表示を検証する。
-- [ ] `node --test test/analysis.test.js`と`npx playwright test`で未実装の失敗を確認する。
-- [ ] summary/summaries参照不一致を修正する。既存画面を保ち、同期ボタン・状態・必要時のログイン・前日／前月比較、貸玉の客数・稼働率・シェア差を追加する。
-- [ ] オンライン起動時に既に取得済みのAPIデータを表示する。IndexedDBの既存キーを保持し、保留VMGの復帰後アップロードは成功後のみ削除する。ローカルクリアとサーバー削除は区別する。
-- [ ] Service Workerを更新しAPIを除外、旧画面キャッシュを更新する。ブラウザテストで390px縦画面、オフライン再起動、最後のデータ表示、復帰後同期、履歴保持を検証する。
-- [ ] 両コマンドで全テスト成功を確認しコミットする。
+- [x] 比較日付テストで東京時間の日付ずれ、閏年、31日の前月欠落、欠落比較値を検証する。ブラウザテストで起動時例外なし、総合一覧・CSV、VMG取込・バックアップ復元、同期表示を検証する。
+- [x] `node --test test/analysis.test.js`と`npx playwright test`で未実装の失敗を確認する。
+- [x] summary/summaries参照不一致を修正する。既存画面を保ち、同期ボタン・状態・必要時のログイン・前日／前月比較、貸玉の客数・稼働率・シェア差を追加する。
+- [x] オンライン起動時に既に取得済みのAPIデータを表示する。IndexedDBの既存キーを保持し、保留VMGの復帰後アップロードは成功後のみ削除する。ローカルクリアとサーバー削除は区別する。
+- [x] Service Workerを更新しAPIを除外、旧画面キャッシュを更新する。ブラウザテストで390px縦画面、オフライン再起動、最後のデータ表示、復帰後同期、履歴保持を検証する。
+- [x] 両コマンドで全テスト成功を確認しコミットする。
 
 ### Task 6: 起動検証と引き渡し
 
@@ -98,8 +98,14 @@
 
 **Interfaces:** `npm start`で配信とcronを開始、`npm test`でユニット・API、`npm run test:e2e`でブラウザ検証。
 
-- [ ] READMEに構成・.env設定・docomo専用ID設定・起動・履歴取込・同期・cron・HTTPS・Androidインストール・JSON移行・エラー診断を記載する。
-- [ ] `npm ci`、`npm test`、`npm run test:e2e`を実行し結果を記録する。実docomo接続の未実施を模擬テスト成功と区別する。
-- [ ] `npm start`で起動しGET statusと静的画面を確認する。停止・再起動後に取込済みDBを読み取れることを確認する。
-- [ ] 秘密・DB・node_modulesが追跡されていないことと`git diff --check`を確認する。必要なクラウドinstall_script／start_skillを保存する。
-- [ ] 最終変更一覧・テスト・未解決事項を報告する。GitHub pushは認証済みHTTPS経路でこの専用リポジトリの作業ブランチのみへ行い、mainへマージしない。
+- [x] READMEに構成・.env設定・docomo専用ID設定・起動・履歴取込・同期・cron・HTTPS・Androidインストール・JSON移行・エラー診断を記載する。
+- [x] `npm ci`、`npm test`、`npm run test:e2e`を実行し結果を記録する。実docomo接続の未実施を模擬テスト成功と区別する。
+- [x] `npm start`で起動しGET statusと静的画面を確認する。停止・再起動後に取込済みDBを読み取れることを確認する。
+- [x] 秘密・DB・node_modulesが追跡されていないことと`git diff --check`を確認する。必要なクラウドinstall_script／start_skillを保存する。
+- [x] 最終変更一覧・テスト・未解決事項を報告する。GitHub pushは認証済みHTTPS経路でこの専用リポジトリの作業ブランチのみへ行い、mainへマージしない。
+
+## 完了時の変更・外部前提
+
+追加指示により本文貼付と既定の静的手動モードを追加した。手動版はメール用バックエンドなしのホストでブラウザ検証済み。
+実docomo認証、実Androidインストール、HTTPS公開は未実施。実装手順のチェックは模擬IMAP・ブラウザ環境での検証を表し、外部前提の充足を意味しない。
+公開用Pagesワークフローは手動実行のみ。ユーザーがSettingsで有効にして実行する。
