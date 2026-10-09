@@ -25,7 +25,7 @@ body{padding-bottom:max(72px,env(safe-area-inset-bottom))}
 .tabs{display:flex;gap:6px;flex-wrap:wrap}.tab{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer}.tab.active{background:#172033;color:#fff}
 table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px solid #e7eaf1;padding:7px 8px;white-space:nowrap;text-align:right}th{position:sticky;top:0;background:#f8f9fc;z-index:1}th:first-child,td:first-child,th:nth-child(3),td:nth-child(3),th:nth-child(4),td:nth-child(4){text-align:left}
 .scroll{overflow:auto;max-height:480px;border:1px solid var(--line);border-radius:10px}.msg{font-size:13px;padding:8px 10px;border-radius:8px;background:#f8fafc;color:#344054;margin-top:8px}.ok{color:var(--good)}.bad{color:var(--bad)}
-canvas{width:100%;height:340px;display:block}.chart-frame{width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid #d9deea;border-radius:10px;margin:8px 0 18px;background:#fff}.chart-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.small{font-size:12px;color:var(--muted)}
+canvas{width:100%;height:340px;display:block}.chart-frame{width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid #d9deea;border-radius:10px;margin:8px 0 18px;background:#fff}.market-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.market-kpis .kpi .v{font-size:26px}.market-note{padding:10px;border-radius:8px;background:#f1f5fb;margin-top:10px;line-height:1.65;font-size:13px;overflow-wrap:anywhere}.chart-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.small{font-size:12px;color:var(--muted)}
 .compare{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.compare .box{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fcfdff}.delta.pos{color:var(--good)}.delta.neg{color:var(--bad)}
 .bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:7px 4px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -2px 12px #0001}.bottomnav button{background:none;border:0;color:#526078;font-size:11px;font-weight:700}.bottomnav button.active{color:var(--accent)}
 .install-banner{display:none;position:fixed;left:12px;right:12px;bottom:82px;z-index:40;background:#0b2d5c;color:#fff;padding:12px;border-radius:12px;box-shadow:0 4px 20px #0004}.install-banner.show{display:block}
@@ -36,6 +36,7 @@ canvas{width:100%;height:340px;display:block}.chart-frame{width:100%;overflow-x:
 <div class="topbar"><div class="title">EAGLE 帯広店 稼働分析</div><div class="sub">メール自動同期・VMG解析・端末内保存</div></div>
 
 <div class="wrap" id="home">
+  <div class="card" id="marketOverview"><b>市場の動き</b><p class="small">メールを取り込むと、市場全体と帯広店の動きを表示します。</p></div>
   <div class="card">
     <div class="row" style="justify-content:space-between"><b>メール本文を取り込む</b><span id="networkStatus" class="small" role="status"></span></div>
     <p class="small">ドコモメールで稼働報告を開き、本文をコピーして下の欄に貼り付けてください。日時・店舗名から末尾まで含めます。</p>
@@ -103,11 +104,11 @@ canvas{width:100%;height:340px;display:block}.chart-frame{width:100%;overflow-x:
     <div class="row" style="justify-content:space-between"><b>帯広店・競合店 推移比較</b><span class="small" id="chartLabel"></span></div>
     <p class="small">日付・時間・貸玉で絞り込みできます。時間「すべて」は11時を表示。店舗のチェックで表示を切り替えます。</p>
     <div class="field"><label for="chartGroup">機種名（選択時は機種別比較）</label><select id="chartGroup"><option value="">全体・貸玉種別で比較</option></select></div>
-    <div class="chart-controls"><div class="field"><label for="chartZoom">グラフ表示</label><select id="chartZoom"><option value="fit">画面に合わせる</option><option value="wide">拡大（横にスクロール）</option></select></div><div class="field"><label for="chartDate">数値・イベントの確認日</label><select id="chartDate"></select></div></div><p class="small">灰色の棒：全報告店舗の客数（右軸）／色の線：店舗別の推移（左軸）。グラフをタップすると、その日の数値とイベントを表示します。</p><p class="small" id="chartScope"></p><div class="row" id="chartStores"></div>
+    <div class="field"><label for="chartPeriod">集計期間</label><select id="chartPeriod"><option value="day">毎日</option><option value="week">週間（月曜〜日曜）</option><option value="month">月間</option></select></div><div class="field"><label for="chartAggregation">時間帯別・日平均</label><select id="chartAggregation"><option value="time">時間帯別（上で時間を選択）</option><option value="average">11・15・19時平均</option></select></div><div class="chart-controls"><div class="field"><label for="chartZoom">グラフ表示</label><select id="chartZoom"><option value="fit">画面に合わせる</option><option value="wide">拡大（横にスクロール）</option></select></div><div class="field"><label for="chartDate">数値・イベントの確認日</label><select id="chartDate"></select></div></div><p class="small">灰色の棒：全報告店舗の客数（右軸）／色の線：店舗別の推移（左軸）。グラフをタップすると、その日の数値とイベントを表示します。</p><p class="small" id="chartScope"></p><div class="row" id="chartStores"></div>
     <b>客数（名）</b><div class="chart-frame"><canvas id="chart" role="img"></canvas></div>
     <b>客数シェア（%）</b><div class="chart-frame"><canvas id="shareChart" role="img"></canvas></div>
-    <p class="small">シェア＝各店の客数 ÷ 同日時・同種別の全報告店舗の客数合計 × 100。メールの記載シェアは使わず、データから計算します。未報告店舗は含みません。</p>
-    <b>稼働率（%）</b><div class="chart-frame"><canvas id="utilChart" role="img"></canvas></div><div id="chartValues" class="scroll"></div>
+    <p class="small">シェアは客数データから計算します。毎日は同日時・同種別の全報告店舗が母数。週間・月間は期間内の客数合計からシェアを計算し、客数は取得日の1日平均を表示します。未報告日は0として扱いません。</p>
+    <b>稼働率（%）</b><div class="chart-frame"><canvas id="utilChart" role="img"></canvas></div><div id="chartValues" class="scroll"></div><b id="averageTitle">11・15・19時 平均（選択日・全店舗）</b><p class="small">客数・稼働率・各時間のシェアを3回分で平均します。シェアは各時間の客数から計算。3回そろっていない店舗は平均を表示しません。</p><div id="dailyAverage" class="scroll"></div>
     <b>帯広店をシェアで上回る店舗のイベント（選択日）</b><div id="eventCompare" class="scroll"></div>
   </div>
 

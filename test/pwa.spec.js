@@ -115,3 +115,28 @@ test('6.25Sと5.61Sの競合店舗を5スロとして同時表示する',async({
  await page.locator('#rate').selectOption('5スロ');await expect(page.locator('#chartStores input')).toHaveCount(2);
  await expect(page.locator('#chartValues')).toContainText('73.9%');await expect(page.locator('#chartValues')).toContainText('26.1%');
 });
+test('時間別表示と別に3時刻の平均を確認しグラフに切り替える',async({page})=>{
+ const report=[11,15,19].map((time,i)=>text.replace('2026/10/06 11時',`2026/10/06 ${time}時`).replace('総合計129名 25%',`総合計${[30,60,90][i]}名 25%`)).join('\n');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
+ await expect(page.locator('#dailyAverage')).toContainText('60名');await expect(page.locator('#chartLabel')).toContainText('11時');
+ await page.locator('#chartAggregation').selectOption('average');await expect(page.locator('#chartLabel')).toContainText('11・15・19時平均');await expect(page.locator('#chartValues')).toContainText('60名');
+});
+test('パチンコの近い貸玉を1パチ・4パチで比較する',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text.replace('7.5円S','4.21P'));await page.locator('#pasteImportBtn').click();
+ await page.locator('#rate').selectOption('4パチ');await expect(page.locator('#chartStores input')).toHaveCount(2);await expect(page.locator('#chartValues')).toContainText('92.3%');
+ await page.locator('#rate').selectOption('1パチ');await expect(page.locator('#chartStores')).toContainText('イーグル');await expect(page.locator('#chartLabel')).toContainText('1パチ');
+});
+test('スマホの先頭で市場客数・自店シェア・順位・競合イベントが分かる',async({page})=>{
+ const report=text.replace('総合計12名 12%','総合計212名 21%\n新台入替');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
+ await expect(page.locator('#marketOverview')).toContainText('341名');await expect(page.locator('#marketOverview')).toContainText('2位');await expect(page.locator('#marketOverview')).toContainText('新台入替');
+ expect(await page.locator('.wrap > .card').first().getAttribute('id')).toBe('marketOverview');
+ await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'/tmp/obihiro-market-overview.png'});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+});
+test('週間・月間のシェア表示へ切り替えられる',async({page})=>{
+ const report=[text,text.replaceAll('2026/10/06','2026/10/07')].join('\n');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
+ await page.locator('#chartPeriod').selectOption('week');await expect(page.locator('#chartLabel')).toContainText('週間');await expect(page.locator('#chartValues')).toContainText('2日');
+ await page.locator('#chartPeriod').selectOption('month');await expect(page.locator('#chartLabel')).toContainText('月間');await expect(page.locator('#chartDate')).toHaveValue('2026-10-01');
+});

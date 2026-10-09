@@ -39,3 +39,43 @@ test('5・5.6・5.61・6.25スロを同じ5スロカテゴリーで集計する'
  const rows=trendRows({records:[{date:'2026-10-06',time:11,store:'A',rate:'6.25円S',customers:20,machines:100},{date:'2026-10-06',time:11,store:'B',rate:'5.61円S',customers:60,machines:200}]},{rate:'5スロ'});
  assert.deepEqual(rows.map(r=>r.share),[25,75]);
 });
+test('1〜1.25円Pを1パチに集約する',async()=>{
+ const {rateCategory}=await import('../public/analysis.js');
+ for(const rate of ['1円P','1.1円P','1.12円P','1.25P'])assert.equal(rateCategory(rate),'1パチ');assert.equal(rateCategory('0.25円P'),'0.25円P');
+});
+test('11・15・19時の平均と欠測を区別する',async()=>{
+ const {averageTrendRows}=await import('../public/analysis.js');
+ const summaries=[11,15,19].flatMap((time,i)=>[{date:'2026-10-06',time,store:'A',customers:[30,60,90][i],util:[10,20,30][i]},{date:'2026-10-06',time,store:'B',customers:[90,60,30][i],util:30}]);
+ summaries.push({date:'2026-10-06',time:11,store:'C',customers:0,util:0});
+ const rows=averageTrendRows({summaries});const a=rows.find(r=>r.store==='A'),c=rows.find(r=>r.store==='C');
+ assert.equal(a.customers,60);assert.equal(a.util,20);assert.equal(a.share,50);assert.equal(a.complete,true);
+ assert.equal(c.customers,null);assert.equal(c.share,null);assert.equal(c.complete,false);assert.deepEqual(c.hours,[11]);
+});
+test('2.5円Pと4・4.21円Pを4パチに集約する',async()=>{
+ const {rateCategory}=await import('../public/analysis.js');
+ for(const rate of ['2.5円P','4円P','4.21P'])assert.equal(rateCategory(rate),'4パチ');
+});
+test('市場概要は同じ報告店舗の前週比較と帯広店の順位を示す',async()=>{
+ const {marketSnapshot}=await import('../public/analysis.js');
+ const current=[{store:'A',customers:30,share:30},{store:'B',customers:70,share:70}],previous=[{store:'A',customers:20,share:20},{store:'B',customers:80,share:80}];
+ const snapshot=marketSnapshot(current,previous,'A');
+ assert.equal(snapshot.total,100);assert.equal(snapshot.totalDelta,0);assert.equal(snapshot.ownCustomerDelta,10);assert.equal(snapshot.ownShareDelta,10);assert.equal(snapshot.rank,2);assert.equal(snapshot.leader.store,'B');
+ assert.equal(marketSnapshot(current,previous.slice(0,1),'A').totalDelta,null);assert.equal(marketSnapshot(current,previous.slice(0,1),'A').ownShareDelta,null);
+});
+test('週は月曜始まり、月は暦月で客数平均と客数合計からシェアを計算',async()=>{
+ const {periodTrendRows}=await import('../public/analysis.js');
+ const rows=[{date:'2026-10-05',store:'A',time:11,customers:10,share:99},{date:'2026-10-06',store:'A',time:11,customers:30,share:99},{date:'2026-10-05',store:'B',time:11,customers:90,share:1},{date:'2026-10-06',store:'B',time:11,customers:70,share:1}];
+ const week=periodTrendRows(rows,'week');assert.equal(week[0].date,'2026-10-05');assert.equal(week[0].customers,20);assert.equal(week[0].share,20);assert.equal(week[0].days,2);assert.equal(week[0].marketTotal,100);
+ assert.equal(periodTrendRows(rows,'month')[0].date,'2026-10-01');
+ const missing=periodTrendRows(rows.slice(0,3),'week');assert.equal(missing.find(r=>r.store==='B').customers,90);assert.equal(missing[0].marketTotal,65);
+});
+test('完全な暦月は日数が違っても平均を比較し、自店の欠測比較は抑止する',async()=>{
+ const {marketSnapshot}=await import('../public/analysis.js');
+ const current=[{date:'2026-10-01',period:'month',periodEnd:'2026-10-31',store:'A',customers:20,share:100,coverageDates:Array.from({length:31},(_,i)=>`2026-10-${String(i+1).padStart(2,'0')}`)}];
+ const previous=[{date:'2026-09-01',period:'month',periodEnd:'2026-09-30',store:'A',customers:10,share:100,coverageDates:Array.from({length:30},(_,i)=>`2026-09-${String(i+1).padStart(2,'0')}`)}];
+ assert.equal(marketSnapshot(current,previous,'A').totalDelta,10);
+ assert.equal(marketSnapshot([{store:'A',customers:20,share:100,hours:[11,15,19]}],[{store:'A',customers:10,share:100,hours:[11]}],'A').ownCustomerDelta,null);
+});
+test('平均の未取得店舗だけなら市場全体も未取得でありゼロではない',async()=>{
+ const {marketSnapshot}=await import('../public/analysis.js');assert.equal(marketSnapshot([{store:'A',customers:null,share:null,complete:false}],[],'A').total,null);
+});
