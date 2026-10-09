@@ -103,9 +103,21 @@ function renderRateCompare(){
  }).join('')+'</tbody></table>';
 }
 function renderRanking(){
-  const tm=$('time').value?+$('time').value:11,rows=filtered('summaries').filter(x=>x.time===tm);if(!rows.length){$('ranking').innerHTML='<div class="msg">データなし</div>';return}const latest=rows.map(x=>x.date).sort().at(-1),data=rows.filter(x=>x.date===latest).sort((a,b)=>b.customers-a.customers);
-  $('ranking').innerHTML='<table><thead><tr><th>順位</th><th>店舗</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.store)}</td><td><b>${r.customers}</b></td><td>${r.util}%</td><td>${r.share??''}${r.share!=null?'%':''}</td></tr>`).join('')+'</tbody></table>'
+ const time=$('time').value,rate=$('rate').value,key=$('rankingMetric').value;
+ const filters={rate,from:$('from').value,to:$('to').value};
+ const rows=time?trendRows(S,{...filters,time:Number(time)}):averageTrendRows(S,filters);
+ const latest=rows.map(r=>r.date).sort().at(-1);
+ $('rankingContext').textContent=`${latest||'データなし'} / ${time?time+'時':'11・15・19時の1日平均'} / ${rate||'店舗全体'} / 全店舗（店舗選択による絞り込みなし）`;
+ if(!latest){$('ranking').innerHTML='<div class="msg">データなし</div>';return;}
+ const data=rows.filter(r=>r.date===latest).sort((a,b)=>(Number.isFinite(b[key])?b[key]:-Infinity)-(Number.isFinite(a[key])?a[key]:-Infinity)||a.store.localeCompare(b.store,'ja'));
+ let rank=0,previous=null;
+ const value=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
+ $('ranking').innerHTML='<table><thead><tr><th>順位</th><th>店舗</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map((r,i)=>{
+  if(Number.isFinite(r[key])&&r[key]!==previous){rank=i+1;previous=r[key];}
+  return `<tr><td>${Number.isFinite(r[key])?rank:'-'}</td><td>${esc(r.store)}</td><td><b>${value(r.customers)}</b></td><td>${value(r.util,'%')}</td><td>${value(r.share,'%')}</td></tr>`;
+ }).join('')+'</tbody></table>';
 }
+$('rankingMetric').addEventListener('change',renderRanking);
 function detailRows(type){
  if(type!=='summary')return filtered(type);
  const average=$('summaryAggregation').value==='average',all=$('summaryScope').value==='all';

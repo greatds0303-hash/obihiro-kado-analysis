@@ -113,7 +113,9 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
   </div>
 
   <div class="card">
-    <b>店舗別 最新比較</b>
+    <b>全店舗ランキング（最新日）</b>
+    <div class="field" style="margin-top:10px"><label for="rankingMetric">順位の基準</label><select id="rankingMetric"><option value="customers">客数が多い順</option><option value="util">稼働率が高い順</option><option value="share">シェアが高い順</option></select></div>
+    <div id="rankingContext" class="small" style="margin-top:8px"></div>
     <div id="ranking" class="scroll" style="margin-top:10px;max-height:320px"></div>
   </div>
 

@@ -192,3 +192,19 @@ test('店舗総合を全店舗の日別3回平均で表示しCSVにも反映す�
  const pending=page.waitForEvent('download');await page.locator('#csvBtn').click();const download=await pending;const csv=readFileSync(await download.path(),'utf8');expect(csv).toContain('1日平均');expect(csv).toContain('競合店');
  await page.locator('#summaryScope').selectOption('selected');await expect(rows).toHaveCount(2);await page.locator('#summaryAggregation').selectOption('time');await expect(rows).toHaveCount(1);await expect(rows.first()).toContainText('15時');
 });
+
+test('全店舗ランキングは時間・貸玉・順位基準を反映して店舗選択に依存しない',async({page})=>{
+ const summaries=[],records=[];
+ for(const time of [11,15,19])for(const [store,total,customers] of [['イーグル スクエア帯広店',100,time===15?60:40],['競合店',20,time===15?15:10]]){
+  summaries.push({date:'2026-10-06',time,store,storeTotal:total,customers,util:customers/total*100});
+  records.push({date:'2026-10-06',time,store,rate:'1.12円P',machines:total,customers:store==='競合店'?18:10,util:store==='競合店'?90:10});
+ }
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'ranking.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records,specials:[]}))});
+ const rows=page.locator('#ranking tbody tr');await expect(rows).toHaveCount(2);await expect(page.locator('#rankingContext')).toContainText('1日平均');await expect(rows.first()).toContainText('46.7');
+ await page.locator('#time').selectOption('15');await expect(rows.first()).toContainText('60');await expect(page.locator('#rankingContext')).toContainText('15時');await expect(rows.first()).toContainText('80%');
+ await page.locator('#rankingMetric').selectOption('util');await expect(rows.first()).toContainText('競合店');await expect(rows.first()).toContainText('75%');
+ await page.locator('#store').selectOption('競合店');await expect(rows).toHaveCount(2);
+ await page.locator('#rankingMetric').selectOption('share');await expect(rows.first()).toContainText('イーグル');
+ await page.locator('#rate').selectOption('1パチ');await expect(page.locator('#rankingContext')).toContainText('1パチ');await expect(rows.first()).toContainText('競合店');await expect(rows.first()).toContainText('64.3%');
+ await page.locator('#rankingMetric').selectOption('customers');await expect(rows.first()).toContainText('18');await page.locator('#rate').selectOption('');await expect(rows.first()).toContainText('60');
+});
