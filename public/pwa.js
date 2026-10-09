@@ -137,11 +137,37 @@ function detailRows(type){
 }
 function renderTable(){
   $('summaryControls').hidden=S.tab!=='summary';
+  renderDetailCharts();
   const type=S.tab,rows=detailRows(type),data=rows.slice(0,1000);let h='';
   if(type==='records')h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>貸玉</th><th>台数</th><th>男性</th><th>女性</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${esc(r.rate)}</td><td>${r.machines}</td><td>${r.male}</td><td>${r.female}</td><td><b>${r.customers}</b></td><td>${r.util}%</td><td>${r.share}%</td></tr>`).join('')+'</tbody></table>';
   else if(type==='summary')h='<table><thead><tr><th>日付</th><th>時間・集計</th><th>店舗</th><th>総台数</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time==='1日平均'?'1日平均（11・15・19時）':r.time+'時'}</td><td>${esc(r.store)}</td><td>${r.storeTotal??'未取得'}</td><td><b>${r.customers??'未取得'}</b></td><td>${r.util==null?'未取得':r.util+'%'}</td><td>${r.share==null?'未取得':r.share+'%'}</td></tr>`).join('')+'</tbody></table>';
   else h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>機種群</th><th>台数</th><th>客数</th><th>稼働率</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${esc(r.group)}</td><td>${r.machines}</td><td><b>${r.customers}</b></td><td>${r.util}%</td></tr>`).join('')+'</tbody></table>';$('tableWrap').innerHTML=h||'<div class="msg">該当データなし</div>'
 }
+let detailAutoRange=true,detailSelectedDate='';
+const detailCategories={records:'',specials:''};
+function renderDetailCharts(){
+ const type=S.tab,active=type==='records'||type==='specials';$('detailCharts').hidden=!active;if(!active)return;
+ const categories=uniq(type==='records'?S.records.map(r=>rateCategory(r.rate)):S.specials.map(r=>r.group));
+ $('detailCategory').innerHTML=categories.map(v=>`<option>${esc(v)}</option>`).join('');
+ $('detailCategory').value=categories.includes(detailCategories[type])?detailCategories[type]:categories[0]||'';detailCategories[type]=$('detailCategory').value;
+ if(detailAutoRange){$('detailFrom').value=$('from').value;$('detailTo').value=$('to').value;}
+ const category=$('detailCategory').value,from=$('detailFrom').value,to=$('detailTo').value,period=$('detailPeriod').value;
+ const time=$('detailTime').value==='linked'?$('time').value:$('detailTime').value,average=!time||time==='average';
+ const filters={from,to,...(type==='records'?{rate:category}:{group:category})};
+ const raw=category&&(from<=to||!from||!to)?(average?averageTrendRows(S,filters):trendRows(S,{...filters,time:Number(time)})):[];
+ const rows=periodTrendRows(raw,period),allStores=uniq([...S.summaries,...S.records,...S.specials].map(r=>r.store)),colors=new Map(allStores.map((store,i)=>[store,chartColors[i%chartColors.length]]));
+ const stores=uniq(rows.map(r=>r.store)).filter(store=>$('detailScope').value==='all'||!$('store').value||store===$('store').value),dates=uniq(rows.map(r=>r.date));
+ detailSelectedDate=dates.includes(detailSelectedDate)?detailSelectedDate:dates.at(-1)||'';
+ $('detailChartContext').textContent=`${category||'カテゴリー未取得'} / ${from||'開始日指定なし'}〜${to||'終了日指定なし'} / ${average?'11・15・19時平均':time+'時'} / ${{day:'毎日',week:'週間',month:'月間'}[period]} / ${stores.length}店舗${from&&to&&from>to?' / 開始日は終了日以前にしてください':''}`;
+ $('detailLegend').innerHTML=stores.map(store=>`<span style="color:${colors.get(store)};padding:5px">● ${esc(store)}</span>`).join('');
+ const val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
+ $('detailChartValues').innerHTML='<table><thead><tr><th>日付・期間</th><th>店舗</th><th>客数</th><th>シェア</th><th>稼働率</th></tr></thead><tbody>'+rows.filter(r=>stores.includes(r.store)).map(r=>`<tr><td>${r.date}${r.periodEnd?'〜'+r.periodEnd:''}</td><td>${esc(r.store)}</td><td>${val(r.customers)}</td><td>${val(r.share,'%')}</td><td>${val(r.util,'%')}</td></tr>`).join('')+'</tbody></table>';
+ for(const [id,key,unit] of [['detailCustomers','customers','名'],['detailShare','share','%'],['detailUtil','util','%']]){
+  $(id).setAttribute('aria-label',`${category} ${key} ${stores.length}店舗`);
+  drawTrend($(id),{rows,dates,stores,colors,key,unit,target:TARGET,date:detailSelectedDate,wide:$('detailZoom').value==='wide',onDate:day=>{detailSelectedDate=day;renderDetailCharts();}});
+ }
+}
+['detailCategory','detailTime','detailFrom','detailTo','detailPeriod','detailScope','detailZoom'].forEach(id=>$(id).addEventListener('change',()=>{if(id==='detailCategory')detailCategories[S.tab]=$(id).value;if(['detailFrom','detailTo'].includes(id))detailAutoRange=false;renderDetailCharts();}));
 let chartDate='';
 const chartHidden=new Set();
 const chartColors=['#0f62fe','#c0392b','#15803d','#9333ea','#b45309','#0e7490','#be185d','#475569'];
@@ -303,7 +329,7 @@ document.querySelectorAll('.bottomnav button').forEach(b=>b.onclick=()=>{documen
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBanner').classList.add('show')});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBanner').classList.remove('show')}};$('installClose').onclick=()=>$('installBanner').classList.remove('show');
 if('serviceWorker'in navigator){const updating=Boolean(navigator.serviceWorker.controller);navigator.serviceWorker.addEventListener('controllerchange',()=>{if(updating)location.reload();});}
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
-window.addEventListener('resize',drawChart);
+window.addEventListener('resize',()=>{drawChart();renderDetailCharts();});
 const initialized=loadState();
 initialized.then(()=>connectApi());
 setInterval(()=>{if(!busy&&navigator.onLine&&!document.hidden)connectApi();},60000);

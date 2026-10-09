@@ -130,6 +130,23 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
       <label>店舗表示 <select id="summaryScope"><option value="selected">選択中の店舗</option><option value="all">全店舗まとめて</option></select></label>
       <span class="small">1日平均は3回の平均値です。3回分がそろわない日は未取得と表示します。</span>
     </div>
+    <section id="detailCharts" hidden style="margin-top:12px">
+      <div class="chart-controls">
+        <div class="field"><label for="detailCategory">カテゴリー</label><select id="detailCategory"></select></div>
+        <div class="field"><label for="detailTime">時間帯・平均</label><select id="detailTime"><option value="linked">上の時間選択に連動</option><option value="11">11時</option><option value="15">15時</option><option value="19">19時</option><option value="average">11・15・19時平均</option></select></div>
+        <div class="field"><label for="detailFrom">見たい期間：開始日</label><input type="date" id="detailFrom"></div>
+        <div class="field"><label for="detailTo">見たい期間：終了日</label><input type="date" id="detailTo"></div>
+        <div class="field"><label for="detailPeriod">集計期間</label><select id="detailPeriod"><option value="day">毎日</option><option value="week">週間（月曜〜日曜）</option><option value="month">月間</option></select></div>
+        <div class="field"><label for="detailScope">表示する店舗</label><select id="detailScope"><option value="all">全店舗を比較</option><option value="selected">上で選択した店舗</option></select></div>
+        <div class="field"><label for="detailZoom">グラフ表示</label><select id="detailZoom"><option value="fit">画面に合わせる</option><option value="wide">拡大（横にスクロール）</option></select></div>
+      </div>
+      <p class="small" id="detailChartContext"></p><div class="row" id="detailLegend"></div>
+      <b>客数（名）</b><div class="chart-frame"><canvas id="detailCustomers" role="img"></canvas></div>
+      <b>客数シェア（%）</b><div class="chart-frame"><canvas id="detailShare" role="img"></canvas></div>
+      <b>稼働率（%）</b><div class="chart-frame"><canvas id="detailUtil" role="img"></canvas></div>
+      <p class="small">シェアは同じカテゴリーの全報告店舗の客数から算出。3回平均は11・15・19時がそろった日のみ集計。グラフをタッチすると店舗名・日付・値を表示します。</p>
+      <div id="detailChartValues" class="scroll"></div>
+    </section>
     <div id="tableWrap" class="scroll" style="margin-top:10px"></div>
   </div>
 </div>

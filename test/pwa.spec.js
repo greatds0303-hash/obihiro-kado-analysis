@@ -238,3 +238,20 @@ test('対象期間と比較期間を自由指定して期間平均を比較す�
 test('数値イベント確認日の選択欄を削除しグラフタッチを維持する',async({page})=>{
  await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();await expect(page.locator('#chartDate')).toHaveCount(0);await expect(page.getByText('数値・イベントの確認日',{exact:true})).toHaveCount(0);await page.locator('#chart').click({position:{x:150,y:45}});await expect(page.locator('#chart').locator('..').getByRole('status')).toContainText('129名');
 });
+
+test('注目機種群と貸玉別にカテゴリー・期間指定の3指標グラフを表示する',async({page})=>{
+ const summaries=[],records=[],specials=[];
+ for(const date of ['2026-10-06','2026-10-07'])for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','競合店']){
+  const own=store.startsWith('イーグル'),later=date.endsWith('07');summaries.push({date,time,store,storeTotal:100,customers:40,util:40});
+  records.push({date,time,store,rate:own?'1.12円P':'1円P',machines:100,customers:later?20:own?10:30,util:later?20:own?10:30},{date,time,store,rate:'12.5円S',machines:50,customers:own?5:15,util:own?10:30});
+  specials.push({date,time,store,group:'スマスロ',machines:30,customers:later?15:own?10:20,util:later?50:own?33.3:66.7},{date,time,store,group:'ジャグラー',machines:30,customers:own?5:15,util:own?16.7:50});
+ }
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'categories.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records,specials}))});
+ await page.locator('[data-tab="specials"]').click();await page.locator('#detailCategory').selectOption('スマスロ');await expect(page.locator('#detailCharts')).toBeVisible();await expect(page.locator('#detailShare')).toHaveAttribute('aria-label',/スマスロ/);await expect(page.locator('#detailChartValues')).toContainText('33.3%');await expect(page.locator('#detailChartValues tbody tr')).toHaveCount(4);
+ await page.locator('#detailFrom').fill('2026-10-07');await expect(page.locator('#detailChartValues tbody tr')).toHaveCount(2);await expect(page.locator('#detailChartValues')).not.toContainText('2026-10-06');await expect(page.locator('#detailChartValues')).toContainText('50%');
+ await page.locator('#detailCategory').selectOption('ジャグラー');await expect(page.locator('#detailChartValues')).toContainText('25%');
+ await page.locator('[data-tab="records"]').click();await page.locator('#detailCategory').selectOption('1パチ');await expect(page.locator('#detailChartValues')).toContainText('50%');await page.locator('#detailScope').selectOption('selected');await expect(page.locator('#detailChartValues tbody tr')).toHaveCount(1);await expect(page.locator('#detailChartValues')).toContainText('50%');
+ await page.locator('#detailCategory').selectOption('20スロ');await expect(page.locator('#detailChartValues')).toContainText('25%');await page.locator('#detailTime').selectOption('average');await page.locator('#detailPeriod').selectOption('week');await expect(page.locator('#detailChartContext')).toContainText('週間');await expect(page.locator('#detailChartContext')).toContainText('11・15・19時平均');
+ await page.locator('#detailCustomers').click({position:{x:150,y:100}});await expect(page.locator('#detailCustomers').locator('..').getByRole('status')).toContainText('イーグル');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+ await page.locator('[data-tab="summary"]').click();await expect(page.locator('#detailCharts')).toBeHidden();
+});
