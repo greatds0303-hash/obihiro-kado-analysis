@@ -73,7 +73,12 @@ function renderLatestCustomerKpi(){
  $('kLatest').textContent=Number.isFinite(row?.customers)?row.customers.toLocaleString('ja-JP'):mode==='average'&&row?'未取得':'-';
  $('latestCustomerInfo').textContent=`${store}${row?' / '+row.date:''}${mode==='average'?(row?.complete?' / 11・15・19時平均':row?' / 3回分未取得':' / データなし'):row?'':' / データなし'}`;
 }
-$('latestTime').addEventListener('change',renderLatestCustomerKpi);
+function selectTime(time){
+ $('time').value=time;$('latestTime').value=time||'average';$('rateCompareTime').value=time;$('chartAggregation').value=time?'time':'average';
+ renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();
+}
+$('latestTime').addEventListener('change',()=>selectTime($('latestTime').value==='average'?'':$('latestTime').value));
+$('rateCompareTime').addEventListener('change',()=>selectTime($('rateCompareTime').value));
 function renderLatestCompare(){
  renderLatestCustomerKpi();
  const store=$('store').value||TARGET;
@@ -212,7 +217,7 @@ function renderTrendDetails(rows,selected,time){
  }).join('')+'</tbody></table>':'<p>帯広店のシェアを上回る報告店舗はありません。</p>');
 }
 ['chartZoom','chartDate','chartPeriod'].forEach(id=>$(id).addEventListener('change',drawChart));
-$('chartAggregation').addEventListener('change',()=>{$('time').value=$('chartAggregation').value==='average'?'':$('time').value||'11';renderRateCompare();renderRanking();renderTable();drawChart();});
+$('chartAggregation').addEventListener('change',()=>selectTime($('chartAggregation').value==='average'?'':$('time').value||'11'));
 $('chartGroup').addEventListener('change',drawChart);
 $('chartStores').addEventListener('change',event=>{const el=event.target;if(!el.matches('input[data-store]'))return;if(el.checked)chartHidden.delete(el.dataset.store);else chartHidden.add(el.dataset.store);drawChart();});
 function csvEscape(v){v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
@@ -287,7 +292,7 @@ $('loginForm').onsubmit=async event=>{
 };
 window.addEventListener('online',async()=>{await initialized;refreshNetwork();$('syncError').textContent='';await connectApi();});window.addEventListener('offline',refreshNetwork);
 const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();file.onchange=e=>loadFiles([...e.target.files]);['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
-['from','to','time','store','rate','base','compareDate'].forEach(id=>$(id).addEventListener('change',()=>{if(['from','to'].includes(id))autoRange=false;if(id==='time')$('chartAggregation').value=$('time').value?'time':'average';if(id==='compareDate')$('base').value='custom';if(id==='base'&&$('base').value!=='custom')$('compareDate').value='';renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
+['from','to','time','store','rate','base','compareDate'].forEach(id=>$(id).addEventListener('change',()=>{if(['from','to'].includes(id))autoRange=false;if(id==='time'){selectTime($('time').value);return;}if(id==='compareDate')$('base').value='custom';if(id==='base'&&$('base').value!=='custom')$('compareDate').value='';renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;renderTable()});
 ['summaryAggregation','summaryScope'].forEach(id=>$(id).addEventListener('change',renderTable));
 $('csvBtn').onclick=exportCsv;$('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=e=>e.target.files[0]&&restore(e.target.files[0]);$('clearBtn').onclick=async()=>{if(confirm('この端末のデータと未送信VMGをクリアしますか？サーバーのデータは削除されません。')){S.records=[];S.summaries=[];S.specials=[];S.mailKeys.clear();S.emails=0;S.pendingVMG=[];S.pendingEmails=[];autoRange=true;$('from').value='';$('to').value='';await saveState();updateAll();$('status').textContent='データをクリアしました。'}};
