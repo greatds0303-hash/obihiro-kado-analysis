@@ -41,7 +41,7 @@ test('5・5.6・5.61・6.25スロを同じ5スロカテゴリーで集計する'
 });
 test('1〜1.25円Pを1パチに集約する',async()=>{
  const {rateCategory}=await import('../public/analysis.js');
- for(const rate of ['1円P','1.1円P','1.12円P','1.25P'])assert.equal(rateCategory(rate),'1パチ');assert.equal(rateCategory('0.25円P'),'0.25円P');
+ for(const rate of ['1円P','1.1円P','1.12円P','1.25P'])assert.equal(rateCategory(rate),'1パチ');assert.equal(rateCategory('0.25円P'),'0.56P');
 });
 test('11・15・19時の平均と欠測を区別する',async()=>{
  const {averageTrendRows}=await import('../public/analysis.js');
@@ -78,4 +78,8 @@ test('完全な暦月は日数が違っても平均を比較し、自店の欠�
 });
 test('平均の未取得店舗だけなら市場全体も未取得でありゼロではない',async()=>{
  const {marketSnapshot}=await import('../public/analysis.js');assert.equal(marketSnapshot([{store:'A',customers:null,share:null,complete:false}],[],'A').total,null);
+});
+test('0.25Pと0.56Pは0.56P、11.24Sは20スロに集約する',async()=>{
+ const {rateCategory}=await import('../public/analysis.js');
+ for(const rate of ['0.25P','0.25円P','0.56円P'])assert.equal(rateCategory(rate),'0.56P');assert.equal(rateCategory('11.24S'),'20スロ');
 });

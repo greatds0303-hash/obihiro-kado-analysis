@@ -20,11 +20,12 @@ export function rateCategory(rate){
  const match=String(rate).normalize('NFKC').replace(/\s+/g,'').match(/^(\d+(?:\.\d+)?)円?([PS])$/i);
  if(!match)return rate;const price=Number(match[1]),kind=match[2].toUpperCase();
  if(kind==='P'){
+  if([0.25,0.56].includes(price))return '0.56P';
   if(price>=1&&price<=1.25)return '1パチ';
   if(price>=2.5&&price<=4.5)return '4パチ';
  }else{
   if(price>=5&&price<=6.25)return '5スロ';
-  if([12.5,20].includes(price))return '20スロ';
+  if([11.24,12.5,20].includes(price))return '20スロ';
  }
  return rate;
 }

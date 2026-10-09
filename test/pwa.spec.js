@@ -140,3 +140,9 @@ test('週間・月間のシェア表示へ切り替えられる',async({page})=>
  await page.locator('#chartPeriod').selectOption('week');await expect(page.locator('#chartLabel')).toContainText('週間');await expect(page.locator('#chartValues')).toContainText('2日');
  await page.locator('#chartPeriod').selectOption('month');await expect(page.locator('#chartLabel')).toContainText('月間');await expect(page.locator('#chartDate')).toHaveValue('2026-10-01');
 });
+test('店舗選択で時間帯比較の店舗とデータを切り替える',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();
+ await page.locator('#store').selectOption('競合店');await expect(page.locator('#timeCompareTitle')).toContainText('競合店');await expect(page.locator('#latestCompare .box').first()).toContainText('12');
+ await expect(page.locator('#latestCompare')).not.toContainText('129');
+ await page.locator('#store').selectOption('イーグル スクエア帯広店');await expect(page.locator('#latestCompare')).toContainText('129');
+});
