@@ -216,3 +216,12 @@ test('時間選択を貸玉比較とグラフに連動しすべては3回平均�
  await page.locator('#time').selectOption('');await expect(page.locator('#rateCompare')).toContainText('11・15・19時平均');await expect(page.locator('#chartLabel')).toContainText('11・15・19時平均');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'4パチ'})).toContainText('6');
  await page.locator('#time').selectOption('19');await expect(page.locator('#rateCompare')).toContainText('19時');await expect(page.locator('#chartLabel')).toContainText('19時');
 });
+
+test('最新客数・貸玉比較・共通時間のどこで変更しても全表示が連動する',async({page})=>{
+ const report=[text,text.replace('2026/10/06 11時','2026/10/06 15時'),text.replace('2026/10/06 11時','2026/10/06 19時')].join('\n');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
+ await page.locator('#latestTime').selectOption('15');await expect(page.locator('#time')).toHaveValue('15');await expect(page.locator('#rateCompareTime')).toHaveValue('15');await expect(page.locator('#rateCompare')).toContainText('15時');await expect(page.locator('#chartLabel')).toContainText('15時');await expect(page.locator('#rankingContext')).toContainText('15時');
+ await page.locator('#rateCompareTime').selectOption('19');await expect(page.locator('#latestTime')).toHaveValue('19');await expect(page.locator('#chartLabel')).toContainText('19時');
+ await page.locator('#time').selectOption('');await expect(page.locator('#latestTime')).toHaveValue('average');await expect(page.locator('#rateCompareTime')).toHaveValue('');await expect(page.locator('#rateCompare')).toContainText('11・15・19時平均');
+ await page.locator('#chartAggregation').selectOption('time');await expect(page.locator('#latestTime')).toHaveValue('11');await expect(page.locator('#rateCompareTime')).toHaveValue('11');
+});
