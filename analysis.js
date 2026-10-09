@@ -17,10 +17,15 @@ export function mergeRows(local,incoming,kind){
  return [...rows.values()];
 }
 export function rateCategory(rate){
- const match=String(rate).normalize('NFKC').replace(/\s+/g,'').match(/^(\d+(?:\.\d+)?)円?S$/i);
- if(!match)return rate;const price=Number(match[1]);
- if(price>=5&&price<=6.25)return '5スロ';
- if([12.5,20].includes(price))return '20スロ';
+ const match=String(rate).normalize('NFKC').replace(/\s+/g,'').match(/^(\d+(?:\.\d+)?)円?([PS])$/i);
+ if(!match)return rate;const price=Number(match[1]),kind=match[2].toUpperCase();
+ if(kind==='P'){
+  if(price>=1&&price<=1.25)return '1パチ';
+  if(price>=2.5&&price<=4.5)return '4パチ';
+ }else{
+  if(price>=5&&price<=6.25)return '5スロ';
+  if([12.5,20].includes(price))return '20スロ';
+ }
  return rate;
 }
 export function trendRows(data,{group='',rate='',time=11,from='',to=''}={}){
@@ -38,4 +43,54 @@ export function trendRows(data,{group='',rate='',time=11,from='',to=''}={}){
  });
  const totals=new Map();for(const row of result){const key=JSON.stringify([row.date,row.time]);totals.set(key,(totals.get(key)||0)+row.customers);}
  return result.map(row=>{const total=totals.get(JSON.stringify([row.date,row.time]));return {...row,share:total>0?Math.round(row.customers/total*1000)/10:null,shareSource:'calculated'};});
+}
+
+export function averageTrendRows(data,filters={}){
+ const buckets=new Map();
+ for(const time of [11,15,19])for(const row of trendRows(data,{...filters,time})){
+  const key=JSON.stringify([row.date,row.store]);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(row);
+ }
+ return [...buckets.values()].map(rows=>{
+  const hours=rows.map(r=>r.time).sort((a,b)=>a-b),complete=hours.length===3;
+  const mean=key=>complete&&rows.every(r=>Number.isFinite(r[key]))?Math.round(rows.reduce((sum,r)=>sum+r[key],0)/3*10)/10:null;
+  return {...rows[0],time:'average',hours,complete,customers:mean('customers'),util:mean('util'),share:mean('share'),shareSource:'calculated'};
+ });
+}
+export function periodBounds(date,period){
+ const start=new Date(`${date}T00:00:00Z`);if(!Number.isFinite(start.getTime()))return null;
+ if(period==='week')start.setUTCDate(start.getUTCDate()-(start.getUTCDay()+6)%7);
+ if(period==='month')start.setUTCDate(1);
+ const end=new Date(start);
+ if(period==='week')end.setUTCDate(end.getUTCDate()+6);
+ if(period==='month'){end.setUTCMonth(end.getUTCMonth()+1);end.setUTCDate(0);}
+ return {start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10)};
+}
+export function periodTrendRows(rows,period='day'){
+ if(period==='day')return rows;
+ const buckets=new Map(),markets=new Map();
+ for(const row of rows){
+  const bounds=periodBounds(row.date,period);if(!bounds)continue;
+  const key=JSON.stringify([bounds.start,row.store]);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(row);
+  if(!markets.has(bounds.start))markets.set(bounds.start,{sum:0,dates:new Set()});
+  if(Number.isFinite(row.customers)){const market=markets.get(bounds.start);market.sum+=row.customers;market.dates.add(row.date);}
+ }
+ return [...buckets.values()].map(source=>{
+  const bounds=periodBounds(source[0].date,period),valid=source.filter(r=>Number.isFinite(r.customers)),market=markets.get(bounds.start);
+  const sum=valid.reduce((n,r)=>n+r.customers,0),mean=key=>{const values=valid.map(r=>r[key]).filter(Number.isFinite);return values.length?Math.round(values.reduce((n,v)=>n+v,0)/values.length*10)/10:null;};
+  return {...source[0],date:bounds.start,periodEnd:bounds.end,period,days:valid.length,reportedDays:source.length,coverageDates:valid.map(r=>r.date).sort(),periodDays:market.dates.size,complete:valid.length>0,customers:mean('customers'),util:mean('util'),share:valid.length&&market.sum>0?Math.round(sum/market.sum*1000)/10:null,shareSource:'calculated',marketTotal:market.dates.size?Math.round(market.sum/market.dates.size*10)/10:null};
+ });
+}
+export function marketSnapshot(current,previous,target){
+ const total=rows=>{if(!rows.some(r=>Number.isFinite(r.customers)))return null;const preset=rows.find(r=>Number.isFinite(r.marketTotal));return preset?preset.marketTotal:Math.round(rows.filter(r=>Number.isFinite(r.customers)).reduce((sum,r)=>sum+r.customers,0)*10)/10;};
+ const coverage=r=>{
+  const offsets=r.coverageDates?.map(day=>Math.round((Date.parse(day)-Date.parse(r.date))/86400000)).sort((a,b)=>a-b)||[];
+  const fullDays=r.periodEnd?Math.round((Date.parse(r.periodEnd)-Date.parse(r.date))/86400000)+1:0;
+  return r.period==='month'&&offsets.length===fullDays&&offsets.every((offset,i)=>offset===i)?'full-month':offsets;
+ };
+ const signature=rows=>JSON.stringify(rows.map(r=>[r.store,r.complete??true,r.hours||[],coverage(r)]).sort((a,b)=>a[0].localeCompare(b[0])));
+ const comparable=previous.length>0&&signature(current)===signature(previous);
+ const own=current.find(r=>r.store===target),prevOwn=previous.find(r=>r.store===target);
+ const ranked=current.filter(r=>Number.isFinite(r.share)).sort((a,b)=>b.share-a.share);
+ const delta=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)?Math.round((a-b)*10)/10:null;
+ return {total:total(current),totalDelta:comparable?delta(total(current),total(previous)):null,own,ownCustomerDelta:own&&prevOwn&&signature([own])===signature([prevOwn])?delta(own.customers,prevOwn.customers):null,ownShareDelta:comparable?delta(own?.share,prevOwn?.share):null,rank:Number.isFinite(own?.share)?ranked.filter(r=>r.share>own.share).length+1:null,leader:ranked[0]||null,reported:current.length,validStores:current.filter(r=>Number.isFinite(r.customers)).length,rankedStores:ranked.length,comparable};
 }

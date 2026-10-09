@@ -4,7 +4,7 @@ function axis(max){
  const step=([1,2,5,10].find(n=>n*power>=raw)||10)*power;
  return {step,max:Math.ceil(Math.max(max,1)/step)*step};
 }
-export function drawTrend(canvas,{rows,dates,stores,colors,key,unit,target,date,wide,onDate}){
+export function drawTrend(canvas,{rows,dates,stores,colors,key,unit,target,date,wide,onDate,totalLabel='全店客数'}){
  const viewport=canvas.parentElement.clientWidth||390;
  const W=wide?Math.max(viewport,dates.length*44+120,720):viewport,H=340,dpr=window.devicePixelRatio||1;
  canvas.style.width=`${W}px`;canvas.style.height=`${H}px`;canvas.width=W*dpr;canvas.height=H*dpr;
@@ -14,9 +14,9 @@ export function drawTrend(canvas,{rows,dates,stores,colors,key,unit,target,date,
  const values=rows.filter(r=>stores.includes(r.store)&&Number.isFinite(r[key])).map(r=>r[key]);
  if(!values.length){ctx.fillStyle='#475569';ctx.font='14px sans-serif';ctx.fillText('表示できるデータがありません',20,50);canvas.onclick=null;return;}
  const left=axis(Math.max(...values));
- const totals=dates.map(day=>rows.filter(r=>r.date===day).reduce((sum,r)=>sum+r.customers,0)),right=axis(Math.max(...totals));
+ const totals=dates.map(day=>rows.find(r=>r.date===day&&Number.isFinite(r.marketTotal))?.marketTotal??rows.filter(r=>r.date===day).reduce((sum,r)=>sum+(r.customers||0),0)),right=axis(Math.max(...totals));
  const y=v=>pad.t+plotH*(1-v/left.max);
- ctx.font='12px sans-serif';ctx.fillStyle='#475569';ctx.fillText(`${unit}（左軸）`,4,17);ctx.textAlign='right';ctx.fillText('全店客数（右軸）',W-4,17);
+ ctx.font='12px sans-serif';ctx.fillStyle='#475569';ctx.fillText(`${unit}（左軸）`,4,17);ctx.textAlign='right';ctx.fillText(`${totalLabel}（右軸）`,W-4,17);
  const barW=Math.min(30,plotW/Math.max(dates.length,1)*.7);
  ctx.fillStyle='#e5e7eb';totals.forEach((total,i)=>{const h=plotH*total/right.max;ctx.fillRect(x(i)-barW/2,pad.t+plotH-h,barW,h);});
  ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;
