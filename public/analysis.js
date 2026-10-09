@@ -99,3 +99,15 @@ export function marketSnapshot(current,previous,target){
  const delta=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)?Math.round((a-b)*10)/10:null;
  return {total:total(current),totalDelta:comparable?delta(total(current),total(previous)):null,own,ownCustomerDelta:own&&prevOwn&&signature([own])===signature([prevOwn])?delta(own.customers,prevOwn.customers):null,ownShareDelta:comparable?delta(own?.share,prevOwn?.share):null,rank:Number.isFinite(own?.share)?ranked.filter(r=>r.share>own.share).length+1:null,leader:ranked[0]||null,reported:current.length,validStores:current.filter(r=>Number.isFinite(r.customers)).length,rankedStores:ranked.length,comparable};
 }
+
+export function rangeTrendRows(rows,from,to){
+ if(!comparisonDate(from,'custom',from)||!comparisonDate(to,'custom',to)||from>to)return [];
+ const source=rows.filter(r=>r.date>=from&&r.date<=to),buckets=new Map(),days=new Set();
+ let marketSum=0;
+ for(const r of source){const key=JSON.stringify([r.store,r.time,r.rate||'']);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(r);if(Number.isFinite(r.customers)){marketSum+=r.customers;days.add(r.date);}}
+ return [...buckets.values()].map(group=>{
+  const valid=group.filter(r=>Number.isFinite(r.customers)),sum=valid.reduce((n,r)=>n+r.customers,0);
+  const mean=key=>{const values=valid.map(r=>r[key]).filter(Number.isFinite);return values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length*10)/10:null;};
+  return {...group[0],date:from,periodEnd:to,period:'range',customers:mean('customers'),util:mean('util'),share:valid.length&&marketSum>0?Math.round(sum/marketSum*1000)/10:null,days:valid.length,reportedDays:group.length,coverageDates:valid.map(r=>r.date).sort(),periodDays:days.size,marketTotal:days.size?Math.round(marketSum/days.size*10)/10:null};
+ });
+}

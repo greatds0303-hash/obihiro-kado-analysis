@@ -225,3 +225,12 @@ test('最新客数・貸玉比較・共通時間のどこで変更しても全�
  await page.locator('#time').selectOption('');await expect(page.locator('#latestTime')).toHaveValue('average');await expect(page.locator('#rateCompareTime')).toHaveValue('');await expect(page.locator('#rateCompare')).toContainText('11・15・19時平均');
  await page.locator('#chartAggregation').selectOption('time');await expect(page.locator('#latestTime')).toHaveValue('11');await expect(page.locator('#rateCompareTime')).toHaveValue('11');
 });
+
+test('対象期間と比較期間を自由指定して期間平均を比較する',async({page})=>{
+ const reports=[text,text.replaceAll('2026/10/06','2026/10/07').replace('総合計129名','総合計169名').replace('合計1名 2%','合計5名 8%'),text.replaceAll('2026/10/06','2026/09/01').replace('総合計129名','総合計100名'),text.replaceAll('2026/10/06','2026/09/02').replace('総合計129名','総合計120名')].join('\n');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(reports);await page.locator('#pasteImportBtn').click();
+ await page.locator('#from').fill('2026-10-06');await page.locator('#to').fill('2026-10-07');await page.locator('#compareDate').fill('2026-09-01');await page.locator('#compareEnd').fill('2026-09-02');
+ await expect(page.locator('#base')).toHaveValue('range');await expect(page.locator('#timeCompareTitle')).toContainText('指定期間の平均');await expect(page.locator('#latestCompare .box').first()).toContainText('149');await expect(page.locator('#latestCompare .box').first()).toContainText('+39名');await expect(page.locator('#latestCompare .box').first()).toContainText('2日取得');
+ await expect(page.locator('#rateCompare')).toContainText('期間平均');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'4パチ'})).toContainText('+2名');await expect(page.locator('#rankingContext')).toContainText('期間平均');await expect(page.locator('#marketOverview')).toContainText('2026-09-01〜2026-09-02');
+ await page.locator('#base').selectOption('7');await expect(page.locator('#timeCompareTitle')).toContainText('最新日');
+});

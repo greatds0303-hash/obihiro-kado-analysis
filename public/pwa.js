@@ -1,5 +1,5 @@
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
-import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory} from './analysis.js';
+import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows} from './analysis.js';
 import {drawTrend} from './trend-chart.js';
 import {request} from './api-client.js';
 
@@ -79,42 +79,46 @@ function selectTime(time){
 }
 $('latestTime').addEventListener('change',()=>selectTime($('latestTime').value==='average'?'':$('latestTime').value));
 $('rateCompareTime').addEventListener('change',()=>selectTime($('rateCompareTime').value));
+function rangeMode(){return $('base').value==='range';}
+function selectedRange(rows,comparison=false){return rangeTrendRows(rows,$(comparison?'compareDate':'from').value,$(comparison?'compareEnd':'to').value);}
 function renderLatestCompare(){
  renderLatestCustomerKpi();
  const store=$('store').value||TARGET;
- $('timeCompareTitle').textContent=`${store} 時間帯比較（最新日）`;
+ $('timeCompareTitle').textContent=`${store} 時間帯比較（${rangeMode()?'指定期間の平均':'最新日'}）`;
  const data=[11,15,19].flatMap(time=>trendRows(S,{time}));
  const rows=data.filter(x=>x.store===store&&(!$('from').value||x.date>=$('from').value)&&(!$('to').value||x.date<=$('to').value)).sort((a,b)=>b.date.localeCompare(a.date));
  if(!rows.length){$('latestCompare').innerHTML='<div class="msg">データなし</div>';return;}
  const latest=rows[0].date,baseDate=comparisonDate(latest,$('base').value,$('compareDate').value);let h='';
  for(const tm of [11,15,19]){
-  const cur=data.find(x=>x.store===store&&x.date===latest&&x.time===tm),prev=baseDate?data.find(x=>x.store===store&&x.date===baseDate&&x.time===tm):null,d=compareRows(cur,prev);
-  h+=`<div class="box"><div class="small">${tm}時 / ${latest}</div><div style="font-size:27px;font-weight:800">${cur?cur.customers:'-'}<span class="small">名</span></div><div class="small">稼働率 ${cur?.util!=null?cur.util+'%':'-'} / シェア ${cur?.share!=null?cur.share+'%':'-'}${cur?.derived?'（総合は算出）':''}</div><div class="small">比較 ${baseDate||'同日なし'}<br>客数 ${deltaHtml(d.customers,'名')}<br>稼働率 ${deltaHtml(d.util,'pt')} / シェア ${deltaHtml(d.share,'pt')}</div></div>`;
+  const subset=data.filter(x=>x.time===tm),cur=rangeMode()?selectedRange(subset).find(x=>x.store===store):data.find(x=>x.store===store&&x.date===latest&&x.time===tm),prev=rangeMode()?selectedRange(subset,true).find(x=>x.store===store):baseDate?data.find(x=>x.store===store&&x.date===baseDate&&x.time===tm):null,d=compareRows(cur,prev);
+  const currentLabel=rangeMode()?`${$('from').value}〜${$('to').value} / ${cur?.days||0}日取得`:latest,priorLabel=rangeMode()?`${$('compareDate').value}〜${$('compareEnd').value} / ${prev?.days||0}日取得`:baseDate||'同日なし';
+  h+=`<div class="box"><div class="small">${tm}時 / ${currentLabel}</div><div style="font-size:27px;font-weight:800">${cur?.customers??'未取得'}<span class="small">名</span></div><div class="small">稼働率 ${cur?.util!=null?cur.util+'%':'-'} / シェア ${cur?.share!=null?cur.share+'%':'-'}${cur?.derived?'（総合は算出）':''}</div><div class="small">比較 ${priorLabel}<br>客数 ${deltaHtml(d.customers,'名')}<br>稼働率 ${deltaHtml(d.util,'pt')} / シェア ${deltaHtml(d.share,'pt')}</div></div>`;
  }
  $('latestCompare').innerHTML=h;
 }
 function renderRateCompare(){
  const store=$('store').value||TARGET,time=$('time').value,average=!time;
  const categories=uniq(S.records.map(r=>rateCategory(r.rate))).filter(rate=>!$('rate').value||rate===$('rate').value);
- const source=categories.flatMap(rate=>(average?averageTrendRows(S,{rate}):trendRows(S,{rate,time:Number(time)})).map(r=>({...r,rate})));
+ const rawSource=categories.flatMap(rate=>(average?averageTrendRows(S,{rate}):trendRows(S,{rate,time:Number(time)})).map(r=>({...r,rate})));
+ const source=rangeMode()?categories.flatMap(rate=>selectedRange(rawSource.filter(r=>r.rate===rate))):rawSource;
  const rows=source.filter(r=>r.store===store&&(!$('from').value||r.date>=$('from').value)&&(!$('to').value||r.date<=$('to').value));
  const latest=rows.map(r=>r.date).sort().at(-1);
  if(!latest){$('rateCompare').textContent='データなし';return;}
  const date=comparisonDate(latest,$('base').value,$('compareDate').value);
- const summary=S.summaries.find(r=>r.store===store&&r.date===latest&&(average||r.time===Number(time)));
- const allRates=S.records.filter(r=>r.store===store&&r.date===latest&&r.time===(average?summary?.time:Number(time)));
+ const summary=S.summaries.find(r=>r.store===store&&r.date===(rangeMode()?rows[0].coverageDates?.at(-1):latest)&&(average||r.time===Number(time)));
+ const allRates=S.records.filter(r=>r.store===store&&r.date===(summary?.date||latest)&&r.time===(average?summary?.time:Number(time)));
  const total=Number.isFinite(summary?.storeTotal)?summary.storeTotal:allRates.length&&allRates.every(r=>Number.isFinite(r.machines))?allRates.reduce((sum,r)=>sum+r.machines,0):null;
- $('rateCompare').innerHTML=`<div class="small">${esc(store)} / ${latest} ${average?'11・15・19時平均':time+'時'}<br><b>総台数 ${total==null?'未取得':total.toLocaleString('ja-JP')+'台'}</b></div>`+'<table><thead><tr><th>貸玉</th><th>台数</th><th>客数</th><th>客数差</th><th>稼働率差</th><th>シェア差</th></tr></thead><tbody>'+rows.filter(r=>r.date===latest).map(r=>{
-  const prev=source.find(p=>p.date===date&&p.store===store&&p.rate===r.rate),d=compareRows(r,prev);
+ $('rateCompare').innerHTML=`<div class="small">${esc(store)} / ${rangeMode()?$('from').value+'〜'+$('to').value+' / 期間平均':latest} ${average?'11・15・19時平均':time+'時'}<br><b>総台数 ${total==null?'未取得':total.toLocaleString('ja-JP')+'台'}</b></div>`+'<table><thead><tr><th>貸玉</th><th>台数</th><th>客数</th><th>客数差</th><th>稼働率差</th><th>シェア差</th></tr></thead><tbody>'+rows.filter(r=>r.date===latest).map(r=>{
+  const prev=rangeMode()?selectedRange(rawSource.filter(p=>p.rate===r.rate),true).find(p=>p.store===store):source.find(p=>p.date===date&&p.store===store&&p.rate===r.rate),d=compareRows(r,prev);
   return `<tr><td>${esc(r.rate)}</td><td>${r.machines==null?'未取得':r.machines+'台'}</td><td>${r.customers??'未取得'}</td><td>${deltaHtml(d.customers,'名')}</td><td>${deltaHtml(d.util,'pt')}</td><td>${deltaHtml(d.share,'pt')}</td></tr>`;
  }).join('')+'</tbody></table>';
 }
 function renderRanking(){
  const time=$('time').value,rate=$('rate').value,key=$('rankingMetric').value;
  const filters={rate,from:$('from').value,to:$('to').value};
- const rows=time?trendRows(S,{...filters,time:Number(time)}):averageTrendRows(S,filters);
+ const raw=time?trendRows(S,{...filters,time:Number(time)}):averageTrendRows(S,filters),rows=rangeMode()?selectedRange(raw):raw;
  const latest=rows.map(r=>r.date).sort().at(-1);
- $('rankingContext').textContent=`${latest||'データなし'} / ${time?time+'時':'11・15・19時の1日平均'} / ${rate||'店舗全体'} / 全店舗（店舗選択による絞り込みなし）`;
+ $('rankingContext').textContent=`${rangeMode()?$('from').value+'〜'+$('to').value+' / 期間平均':latest||'データなし'} / ${time?time+'時':'11・15・19時の1日平均'} / ${rate||'店舗全体'} / 全店舗（店舗選択による絞り込みなし）`;
  if(!latest){$('ranking').innerHTML='<div class="msg">データなし</div>';return;}
  const data=rows.filter(r=>r.date===latest).sort((a,b)=>(Number.isFinite(b[key])?b[key]:-Infinity)-(Number.isFinite(a[key])?a[key]:-Infinity)||a.store.localeCompare(b.store,'ja'));
  let rank=0,previous=null;
@@ -167,22 +171,22 @@ function drawChart(){
 }
 
 function renderMarketOverview(rows,filters,average,period,timeLabel){
- const day=$('chartDate').value,current=rows.filter(r=>r.date===day),all=periodTrendRows(average?averageTrendRows(S,filters):trendRows(S,filters),period);
+ const day=$('chartDate').value,rawMarket=average?averageTrendRows(S,filters):trendRows(S,filters),current=rangeMode()?selectedRange(rawMarket):rows.filter(r=>r.date===day),all=periodTrendRows(average?averageTrendRows(S,filters):trendRows(S,filters),period);
  const dates=uniq(all.map(r=>r.date)),index=dates.indexOf(day);
  const controls=`<b>市場の動き</b><div class="field" style="margin-top:10px"><label for="marketDate">市場の表示日・期間（保存済みデータ）</label><select id="marketDate" ${dates.length?'':'disabled'}><option value="" disabled ${index<0?'selected':''}>表示する期間を選択</option>${dates.map(date=>`<option value="${date}" ${date===day?'selected':''}>${date}${period!=='day'?'〜'+periodBounds(date,period).end:''}</option>`).join('')}</select></div><div class="row" style="margin-top:8px"><button class="btn gray" data-market-shift="-1" ${index<=0?'disabled':''}>前へ</button><button class="btn gray" data-market-shift="1" ${index<0||index>=dates.length-1?'disabled':''}>次へ</button></div>`;
  if(!current.length){$('marketOverview').innerHTML=controls+'<p class="small">この条件のデータはありません。保存済みの期間を選ぶか、メール本文を取り込んでください。</p>';return;}
  const priorDate=comparisonDate(day,$('base').value,$('compareDate').value),prior=priorDate?periodBounds(priorDate,period).start:null;
- const snapshot=marketSnapshot(current,all.filter(r=>r.date===prior),TARGET),own=snapshot.own;
+ const snapshot=marketSnapshot(current,rangeMode()?selectedRange(rawMarket,true):all.filter(r=>r.date===prior),TARGET),own=snapshot.own;
  const format=(value,unit)=>Number.isFinite(value)?value.toLocaleString('ja-JP')+unit:'未取得';
  const change=(value,unit)=>value==null?'比較なし':(value>0?'+':'')+value+unit;
- const caption={'1':'前日','7':'前週','28':'4週前','month':'前月同日','custom':'指定日'}[$('base').value];
+ const caption={'1':'前日','7':'前週','28':'4週前','month':'前月同日','custom':'指定日','range':'指定期間'}[$('base').value];
  const tiles=[['市場全体の客数'+(period!=='day'?'（1日平均）':average?'（3回平均）':''),format(snapshot.total,'名'),caption+' '+change(snapshot.totalDelta,'名')],['帯広店の客数',format(own?.customers,'名'),caption+' '+change(snapshot.ownCustomerDelta,'名')],['帯広店のシェア',format(own?.share,'%'),caption+' '+change(snapshot.ownShareDelta,'pt')],['帯広店の順位',snapshot.rank?snapshot.rank+'位 / '+snapshot.rankedStores+'店':'算出なし','報告 '+snapshot.reported+'店 / 集計 '+snapshot.validStores+'店']];
  const bounds=periodBounds(day,period),winning=current.filter(r=>r.store!==TARGET&&Number.isFinite(own?.share)&&r.share>own.share).sort((a,b)=>b.share-a.share);
  const events=winning.map(r=>{
   const text=uniq(S.summaries.filter(s=>s.store===r.store&&(r.coverageDates?r.coverageDates.includes(s.date):s.date===day)&&(average||s.time===filters.time)).map(s=>s.event?(period==='day'?'':s.date+' ')+s.event:'').filter(Boolean)).join(' / ');
   return `<div><b>${esc(r.store)} ${format(r.share,'%')}</b><br>${text?esc(text):'イベント記載なし・未取得'}</div>`;
  }).join('');
- $('marketOverview').innerHTML=`${controls}<p class="small">${day}${period!=='day'?'〜'+bounds.end:''} / ${timeLabel} / ${esc(filters.group||filters.rate||'店舗総合')}<br>比較：${prior||'未指定'}${prior&&period!=='day'?'〜'+periodBounds(prior,period).end:''}</p><div class="market-kpis">${tiles.map(([label,value,note])=>`<div class="kpi"><div class="l">${label}</div><div class="v">${value}</div><div class="small">${note}</div></div>`).join('')}</div><div class="market-note">${snapshot.leader?'シェア首位：<b>'+esc(snapshot.leader.store)+' '+format(snapshot.leader.share,'%')+'</b><br>':''}${events?'帯広店を上回る競合とイベント：'+events:'帯広店を上回る報告店舗はありません。帯広店データ未取得の場合は比較できません。'}${!snapshot.comparable?'<p class="small">比較データ未取得、または報告店舗・取得日が異なるため、市場客数とシェアの増減は比較しません。</p>':''}</div>`;
+ $('marketOverview').innerHTML=`${controls}<p class="small">${rangeMode()?$('from').value+'〜'+$('to').value+' / 期間平均':day+(period!=='day'?'〜'+bounds.end:'')} / ${timeLabel} / ${esc(filters.group||filters.rate||'店舗総合')}<br>比較：${rangeMode()?$('compareDate').value+'〜'+$('compareEnd').value:(prior||'未指定')+(prior&&period!=='day'?'〜'+periodBounds(prior,period).end:'')}</p><div class="market-kpis">${tiles.map(([label,value,note])=>`<div class="kpi"><div class="l">${label}</div><div class="v">${value}</div><div class="small">${note}</div></div>`).join('')}</div><div class="market-note">${snapshot.leader?'シェア首位：<b>'+esc(snapshot.leader.store)+' '+format(snapshot.leader.share,'%')+'</b><br>':''}${events?'帯広店を上回る競合とイベント：'+events:'帯広店を上回る報告店舗はありません。帯広店データ未取得の場合は比較できません。'}${!snapshot.comparable?'<p class="small">比較データ未取得、または報告店舗・取得日が異なるため、市場客数とシェアの増減は比較しません。</p>':''}</div>`;
 }
 $('marketOverview').addEventListener('change',event=>{
  if(event.target.id!=='marketDate'||!event.target.value)return;
@@ -292,7 +296,7 @@ $('loginForm').onsubmit=async event=>{
 };
 window.addEventListener('online',async()=>{await initialized;refreshNetwork();$('syncError').textContent='';await connectApi();});window.addEventListener('offline',refreshNetwork);
 const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();file.onchange=e=>loadFiles([...e.target.files]);['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
-['from','to','time','store','rate','base','compareDate'].forEach(id=>$(id).addEventListener('change',()=>{if(['from','to'].includes(id))autoRange=false;if(id==='time'){selectTime($('time').value);return;}if(id==='compareDate')$('base').value='custom';if(id==='base'&&$('base').value!=='custom')$('compareDate').value='';renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
+['from','to','time','store','rate','base','compareDate','compareEnd'].forEach(id=>$(id).addEventListener('change',()=>{if(['from','to'].includes(id))autoRange=false;if(id==='time'){selectTime($('time').value);return;}if(id==='compareDate')$('base').value=$('compareEnd').value?'range':'custom';if(id==='compareEnd')$('base').value='range';if(id==='base'&&!['custom','range'].includes($('base').value)){$('compareDate').value='';$('compareEnd').value='';}renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;renderTable()});
 ['summaryAggregation','summaryScope'].forEach(id=>$(id).addEventListener('change',renderTable));
 $('csvBtn').onclick=exportCsv;$('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=e=>e.target.files[0]&&restore(e.target.files[0]);$('clearBtn').onclick=async()=>{if(confirm('この端末のデータと未送信VMGをクリアしますか？サーバーのデータは削除されません。')){S.records=[];S.summaries=[];S.specials=[];S.mailKeys.clear();S.emails=0;S.pendingVMG=[];S.pendingEmails=[];autoRange=true;$('from').value='';$('to').value='';await saveState();updateAll();$('status').textContent='データをクリアしました。'}};

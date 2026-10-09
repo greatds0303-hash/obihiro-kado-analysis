@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {comparisonDate,compareRows,mergeRows} from '../public/analysis.js';
+import {comparisonDate,compareRows,mergeRows,rangeTrendRows} from '../public/analysis.js';
 test('東京時間でも日付をずらさず前日・前週・4週前',()=>{
  assert.equal(comparisonDate('2026-10-06','1'),'2026-10-05');assert.equal(comparisonDate('2026-10-06','7'),'2026-09-29');assert.equal(comparisonDate('2026-10-06','28'),'2026-09-08');
 });
@@ -85,4 +85,10 @@ test('0.25Pと0.56Pは0.56P、11.24Sは20スロに集約する',async()=>{
 });
 test('比較日を自由に指定し空欄・不正日付は比較なし',()=>{
  assert.equal(comparisonDate('2026-10-06','custom','2026-09-01'),'2026-09-01');assert.equal(comparisonDate('2026-10-06','custom','2026-02-30'),null);assert.equal(comparisonDate('2026-10-06','custom',''),null);
+});
+
+test('指定期間の平均は取得日のみを集計しシェアを客数から算出する',()=>{
+ const rows=[{date:'2026-10-01',time:11,store:'A',customers:10,util:10},{date:'2026-10-03',time:11,store:'A',customers:30,util:30},{date:'2026-10-01',time:11,store:'B',customers:60,util:60}];
+ const result=rangeTrendRows(rows,'2026-10-01','2026-10-04');assert.equal(result[0].customers,20);assert.equal(result[0].days,2);assert.equal(result[0].share,40);assert.equal(result[0].marketTotal,50);assert.equal(result[1].customers,60);
+ assert.deepEqual(rangeTrendRows(rows,'2026-10-04','2026-10-01'),[]);assert.deepEqual(rangeTrendRows(rows,'2026-02-30','2026-10-01'),[]);
 });
