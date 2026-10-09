@@ -146,3 +146,17 @@ test('店舗選択で時間帯比較の店舗とデータを切り替える',asy
  await expect(page.locator('#latestCompare')).not.toContainText('129');
  await page.locator('#store').selectOption('イーグル スクエア帯広店');await expect(page.locator('#latestCompare')).toContainText('129');
 });
+test('自由な比較日を時間帯・貸玉・市場概要に反映する',async({page})=>{
+ const previous=text.replaceAll('2026/10/06','2026/09/01').replace('総合計129名 25%','総合計100名 19%').replace('合計1名 2%','合計0名 0%').replace('男1名 女0名','男0名 女0名').replace('合計34名 20%','合計6名 4%').replace('男34名 女0名','男6名 女0名');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text+'\n'+previous);await page.locator('#pasteImportBtn').click();
+ await page.locator('#compareDate').fill('2026-09-01');await expect(page.locator('#base')).toHaveValue('custom');
+ await expect(page.locator('#latestCompare')).toContainText('2026-09-01');await expect(page.locator('#latestCompare')).toContainText('+29名');await expect(page.locator('#rateCompare')).toContainText('+1名');await expect(page.locator('#marketOverview')).toContainText('+29名');
+ await page.locator('#compareDate').fill('2025-01-01');await expect(page.locator('#latestCompare')).toContainText('比較なし');
+});
+test('市場概要から過去の市場データを選び前後へ移動できる',async({page})=>{
+ const older=text.replaceAll('2026/10/06','2026/09/01').replace('総合計129名 25%','総合計100名 19%');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(older+'\n'+text);await page.locator('#pasteImportBtn').click();
+ await page.locator('#marketDate').selectOption('2026-09-01');await expect(page.locator('#marketOverview')).toContainText('112名');await expect(page.locator('#chartDate')).toHaveValue('2026-09-01');
+ await page.locator('[data-market-shift="1"]').click();await expect(page.locator('#marketOverview')).toContainText('141名');
+ await page.locator('#from').fill('2026-10-06');await page.locator('#marketDate').selectOption('2026-09-01');await expect(page.locator('#marketOverview')).toContainText('112名');
+});

@@ -83,3 +83,6 @@ test('0.25Pと0.56Pは0.56P、11.24Sは20スロに集約する',async()=>{
  const {rateCategory}=await import('../public/analysis.js');
  for(const rate of ['0.25P','0.25円P','0.56円P'])assert.equal(rateCategory(rate),'0.56P');assert.equal(rateCategory('11.24S'),'20スロ');
 });
+test('比較日を自由に指定し空欄・不正日付は比較なし',()=>{
+ assert.equal(comparisonDate('2026-10-06','custom','2026-09-01'),'2026-09-01');assert.equal(comparisonDate('2026-10-06','custom','2026-02-30'),null);assert.equal(comparisonDate('2026-10-06','custom',''),null);
+});
