@@ -142,6 +142,7 @@ function renderTable(){
   else if(type==='summary')h='<table><thead><tr><th>日付</th><th>時間・集計</th><th>店舗</th><th>総台数</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time==='1日平均'?'1日平均（11・15・19時）':r.time+'時'}</td><td>${esc(r.store)}</td><td>${r.storeTotal??'未取得'}</td><td><b>${r.customers??'未取得'}</b></td><td>${r.util==null?'未取得':r.util+'%'}</td><td>${r.share==null?'未取得':r.share+'%'}</td></tr>`).join('')+'</tbody></table>';
   else h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>機種群</th><th>台数</th><th>客数</th><th>稼働率</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${esc(r.group)}</td><td>${r.machines}</td><td><b>${r.customers}</b></td><td>${r.util}%</td></tr>`).join('')+'</tbody></table>';$('tableWrap').innerHTML=h||'<div class="msg">該当データなし</div>'
 }
+let chartDate='';
 const chartHidden=new Set();
 const chartColors=['#0f62fe','#c0392b','#15803d','#9333ea','#b45309','#0e7490','#be185d','#475569'];
 function drawChart(){
@@ -157,8 +158,7 @@ function drawChart(){
  const selected=stores.filter(store=>!chartHidden.has(store));
  const dates=uniq(rows.map(r=>r.date));
  $('chartScope').textContent=`読み取り済み ${stores.length}店舗 / 表示 ${selected.length}店舗（上の店舗フィルターに関係なく全店舗を比較）`;
- const selectedDate=$('chartDate').value;
- $('chartDate').innerHTML=dates.map(day=>`<option>${day}</option>`).join('');$('chartDate').value=dates.includes(selectedDate)?selectedDate:dates.at(-1)||'';
+ chartDate=dates.includes(chartDate)?chartDate:dates.at(-1)||'';
  $('averageTitle').textContent=`11・15・19時 平均（${periodLabel}・全店舗）`;
  renderDailyAverage(averages);
  renderMarketOverview(rows,{group,rate:group?'':rate,time:tm},average,period,timeLabel);
@@ -166,12 +166,12 @@ function drawChart(){
  for(const [id,key,unit] of [['chart','customers','名'],['shareChart','share','%'],['utilChart','util','%']]){
   const canvas=$(id);
   canvas.setAttribute('aria-label',`${selected.length}店舗 ${timeLabel} ${group||rate||'店舗総合'} ${key==='customers'?'客数':key==='share'?'シェア':'稼働率'}推移`);
-  drawTrend(canvas,{rows,dates,stores:selected,colors,key,unit,target:TARGET,date:$('chartDate').value,totalLabel:period!=='day'?'全店1日平均客数':average?'3回取得店の平均客数':'全店客数',wide:$('chartZoom').value==='wide',onDate:day=>{$('chartDate').value=day;drawChart();}});
+  drawTrend(canvas,{rows,dates,stores:selected,colors,key,unit,target:TARGET,date:chartDate,totalLabel:period!=='day'?'全店1日平均客数':average?'3回取得店の平均客数':'全店客数',wide:$('chartZoom').value==='wide',onDate:day=>{chartDate=day;drawChart();}});
  }
 }
 
 function renderMarketOverview(rows,filters,average,period,timeLabel){
- const day=$('chartDate').value,rawMarket=average?averageTrendRows(S,filters):trendRows(S,filters),current=rangeMode()?selectedRange(rawMarket):rows.filter(r=>r.date===day),all=periodTrendRows(average?averageTrendRows(S,filters):trendRows(S,filters),period);
+ const day=chartDate,rawMarket=average?averageTrendRows(S,filters):trendRows(S,filters),current=rangeMode()?selectedRange(rawMarket):rows.filter(r=>r.date===day),all=periodTrendRows(average?averageTrendRows(S,filters):trendRows(S,filters),period);
  const dates=uniq(all.map(r=>r.date)),index=dates.indexOf(day);
  const controls=`<b>市場の動き</b><div class="field" style="margin-top:10px"><label for="marketDate">市場の表示日・期間（保存済みデータ）</label><select id="marketDate" ${dates.length?'':'disabled'}><option value="" disabled ${index<0?'selected':''}>表示する期間を選択</option>${dates.map(date=>`<option value="${date}" ${date===day?'selected':''}>${date}${period!=='day'?'〜'+periodBounds(date,period).end:''}</option>`).join('')}</select></div><div class="row" style="margin-top:8px"><button class="btn gray" data-market-shift="-1" ${index<=0?'disabled':''}>前へ</button><button class="btn gray" data-market-shift="1" ${index<0||index>=dates.length-1?'disabled':''}>次へ</button></div>`;
  if(!current.length){$('marketOverview').innerHTML=controls+'<p class="small">この条件のデータはありません。保存済みの期間を選ぶか、メール本文を取り込んでください。</p>';return;}
@@ -194,8 +194,7 @@ $('marketOverview').addEventListener('change',event=>{
  if(!$('from').value||$('from').value>bounds.start)$('from').value=bounds.start;
  if(!$('to').value||$('to').value<bounds.end)$('to').value=bounds.end;
  autoRange=false;
- if(![...$('chartDate').options].some(option=>option.value===day))$('chartDate').add(new Option(day,day));
- $('chartDate').value=day;renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();
+ chartDate=day;renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();
 });
 $('marketOverview').addEventListener('click',event=>{
  const button=event.target.closest('[data-market-shift]');if(!button||button.disabled)return;
@@ -203,12 +202,12 @@ $('marketOverview').addEventListener('click',event=>{
  if(next<0||next>=dates.length)return;select.value=dates[next];select.dispatchEvent(new Event('change',{bubbles:true}));
 });
 function renderDailyAverage(rows){
- const day=$('chartDate').value||rows.map(r=>r.date).sort().at(-1);
+ const day=chartDate||rows.map(r=>r.date).sort().at(-1);
  const current=rows.filter(r=>r.date===day);
  $('dailyAverage').innerHTML=current.length?'<table><thead><tr><th>日付 / 店舗</th><th>平均客数</th><th>平均稼働率</th><th>平均シェア</th></tr></thead><tbody>'+current.map(r=>`<tr><td>${r.date}${r.periodEnd?'〜'+r.periodEnd:''}<br>${esc(r.store)}${r.days!=null?'<br>'+r.days+'日分 / 期間内'+r.periodDays+'取得日':''}</td><td>${r.complete?r.customers+'名':'3回分未取得（'+r.hours.join('・')+'時のみ）'}</td><td>${r.util==null?'-':r.util+'%'}</td><td>${r.share==null?'-':r.share+'%'}</td></tr>`).join('')+'</tbody></table>':'<p>データなし</p>';
 }
 function renderTrendDetails(rows,selected,time){
- const latest=$('chartDate').value;
+ const latest=chartDate;
  const current=rows.filter(r=>r.date===latest).sort((a,b)=>(b.share??-1)-(a.share??-1));
  $('chartValues').innerHTML='<table><thead><tr><th>選択日 / 店舗</th><th>客数</th><th>シェア</th></tr></thead><tbody>'+current.filter(r=>selected.includes(r.store)).map(r=>`<tr><td>${r.date}${r.periodEnd?'〜'+r.periodEnd:''}<br>${esc(r.store)}${r.days!=null?'<br>'+r.days+'日分 / 期間内'+r.periodDays+'取得日':''}</td><td>${r.customers==null?'3回分未取得':r.customers+'名'}</td><td>${r.share==null?'未報告':r.share+'%'}${r.shareSource==='calculated'?'（算出）':''}</td></tr>`).join('')+'</tbody></table>';
  const own=current.find(r=>r.store===TARGET);
@@ -220,7 +219,7 @@ function renderTrendDetails(rows,selected,time){
   return `<tr><td>${esc(r.store)}<br>${r.share}%（帯広店より${Math.round((r.share-own.share)*10)/10}pt高い）</td><td style="white-space:pre-wrap">${event?esc(event):'記載なし・未取得'}</td></tr>`;
  }).join('')+'</tbody></table>':'<p>帯広店のシェアを上回る報告店舗はありません。</p>');
 }
-['chartZoom','chartDate','chartPeriod'].forEach(id=>$(id).addEventListener('change',drawChart));
+['chartZoom','chartPeriod'].forEach(id=>$(id).addEventListener('change',drawChart));
 $('chartAggregation').addEventListener('change',()=>selectTime($('chartAggregation').value==='average'?'':$('time').value||'11'));
 $('chartGroup').addEventListener('change',drawChart);
 $('chartStores').addEventListener('change',event=>{const el=event.target;if(!el.matches('input[data-store]'))return;if(el.checked)chartHidden.delete(el.dataset.store);else chartHidden.add(el.dataset.store);drawChart();});

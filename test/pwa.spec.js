@@ -106,7 +106,7 @@ test('スマホの拡大グラフ・日付選択と客数からのシェア計�
  await expect(page.locator('#chartValues')).toContainText('25%');await expect(page.locator('#chartValues')).toContainText('75%');
  await page.locator('#chartZoom').selectOption('wide');
  expect(await page.locator('#shareChart').evaluate(el=>el.clientWidth>el.parentElement.clientWidth)).toBeTruthy();
- await page.locator('#chartDate').selectOption('2026-09-01');await expect(page.locator('#chartValues')).toContainText('2026-09-01');await expect(page.locator('#eventCompare')).toContainText('新台入替');
+ await page.locator('#marketDate').selectOption('2026-09-01');await expect(page.locator('#chartValues')).toContainText('2026-09-01');await expect(page.locator('#eventCompare')).toContainText('新台入替');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
  await page.locator('#chartZoom').selectOption('fit');await page.locator('#shareChart').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/obihiro-chart-mobile.png'});
 });
@@ -138,7 +138,7 @@ test('週間・月間のシェア表示へ切り替えられる',async({page})=>
  const report=[text,text.replaceAll('2026/10/06','2026/10/07')].join('\n');
  await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
  await page.locator('#chartPeriod').selectOption('week');await expect(page.locator('#chartLabel')).toContainText('週間');await expect(page.locator('#chartValues')).toContainText('2日');
- await page.locator('#chartPeriod').selectOption('month');await expect(page.locator('#chartLabel')).toContainText('月間');await expect(page.locator('#chartDate')).toHaveValue('2026-10-01');
+ await page.locator('#chartPeriod').selectOption('month');await expect(page.locator('#chartLabel')).toContainText('月間');await expect(page.locator('#marketDate')).toHaveValue('2026-10-01');
 });
 test('店舗選択で時間帯比較の店舗とデータを切り替える',async({page})=>{
  await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();
@@ -156,7 +156,7 @@ test('自由な比較日を時間帯・貸玉・市場概要に反映する',asy
 test('市場概要から過去の市場データを選び前後へ移動できる',async({page})=>{
  const older=text.replaceAll('2026/10/06','2026/09/01').replace('総合計129名 25%','総合計100名 19%');
  await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(older+'\n'+text);await page.locator('#pasteImportBtn').click();
- await page.locator('#marketDate').selectOption('2026-09-01');await expect(page.locator('#marketOverview')).toContainText('112名');await expect(page.locator('#chartDate')).toHaveValue('2026-09-01');
+ await page.locator('#marketDate').selectOption('2026-09-01');await expect(page.locator('#marketOverview')).toContainText('112名');await expect(page.locator('#marketDate')).toHaveValue('2026-09-01');
  await page.locator('[data-market-shift="1"]').click();await expect(page.locator('#marketOverview')).toContainText('141名');
  await page.locator('#from').fill('2026-10-06');await page.locator('#marketDate').selectOption('2026-09-01');await expect(page.locator('#marketOverview')).toContainText('112名');
 });
@@ -233,4 +233,8 @@ test('対象期間と比較期間を自由指定して期間平均を比較す�
  await expect(page.locator('#base')).toHaveValue('range');await expect(page.locator('#timeCompareTitle')).toContainText('指定期間の平均');await expect(page.locator('#latestCompare .box').first()).toContainText('149');await expect(page.locator('#latestCompare .box').first()).toContainText('+39名');await expect(page.locator('#latestCompare .box').first()).toContainText('2日取得');
  await expect(page.locator('#rateCompare')).toContainText('期間平均');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'4パチ'})).toContainText('+2名');await expect(page.locator('#rankingContext')).toContainText('期間平均');await expect(page.locator('#marketOverview')).toContainText('2026-09-01〜2026-09-02');
  await page.locator('#base').selectOption('7');await expect(page.locator('#timeCompareTitle')).toContainText('最新日');
+});
+
+test('数値イベント確認日の選択欄を削除しグラフタッチを維持する',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();await expect(page.locator('#chartDate')).toHaveCount(0);await expect(page.getByText('数値・イベントの確認日',{exact:true})).toHaveCount(0);await page.locator('#chart').click({position:{x:150,y:45}});await expect(page.locator('#chart').locator('..').getByRole('status')).toContainText('129名');
 });
