@@ -160,3 +160,11 @@ test('市場概要から過去の市場データを選び前後へ移動でき�
  await page.locator('[data-market-shift="1"]').click();await expect(page.locator('#marketOverview')).toContainText('141名');
  await page.locator('#from').fill('2026-10-06');await page.locator('#marketDate').selectOption('2026-09-01');await expect(page.locator('#marketOverview')).toContainText('112名');
 });
+test('最新客数欄で各時間と全体平均を選び店舗選択も反映する',async({page})=>{
+ const report=[11,15,19].map((time,i)=>text.replace('2026/10/06 11時',`2026/10/06 ${time}時`).replace('総合計129名 25%',`総合計${[30,60,90][i]}名 25%`)).join('\n');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
+ await expect(page.locator('#latestTime')).toBeVisible();await page.locator('#latestTime').selectOption('15');await expect(page.locator('#kLatest')).toHaveText('60');
+ await page.locator('#latestTime').selectOption('19');await expect(page.locator('#kLatest')).toHaveText('90');
+ await page.locator('#latestTime').selectOption('average');await expect(page.locator('#kLatest')).toHaveText('60');await expect(page.locator('#latestCustomerInfo')).toContainText('2026-10-06');
+ await page.locator('#store').selectOption('競合店');await expect(page.locator('#kLatest')).toHaveText('12');await expect(page.locator('#latestCustomerInfo')).toContainText('競合店');
+});

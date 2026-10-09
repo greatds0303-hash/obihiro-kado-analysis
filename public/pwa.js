@@ -62,11 +62,20 @@ function fmtDelta(v){if(v==null||Number.isNaN(v))return '-';return(v>0?'+':'')+v
 function updateAll(){
   const dates=uniq(S.summaries.map(x=>x.date)),stores=uniq(S.summaries.map(x=>x.store));$('kEmails').textContent=S.emails.toLocaleString();$('kDays').textContent=dates.length.toLocaleString();$('kRecords').textContent=S.records.length.toLocaleString();$('kStores').textContent=stores.length;$('kRange').textContent=dates.length?`${dates[0].slice(5).replace('-','/')}〜${dates.at(-1).slice(5).replace('-','/')}`:'-';
   fillSelect('store',stores,TARGET);const groupSelect=$('chartGroup'),selectedGroup=groupSelect.value;groupSelect.innerHTML='<option value="">全体・貸玉種別で比較</option>'+uniq(S.specials.map(r=>r.group)).map(group=>`<option>${esc(group)}</option>`).join('');groupSelect.value=selectedGroup;fillSelect('rate',uniq(S.records.map(x=>rateCategory(x.rate))));if(dates.length&&autoRange){$('from').value=dates[0];$('to').value=dates.at(-1)}
-  const latest11=[...S.summaries].filter(x=>x.store===TARGET&&x.time===11).sort((a,b)=>b.date.localeCompare(a.date))[0];$('kLatest').textContent=latest11?latest11.customers.toLocaleString():'-';renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();refreshNetwork()
+  renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();refreshNetwork()
 }
 
 function deltaHtml(value,unit){return `<span class="delta ${value>0?'pos':value<0?'neg':''}">${value==null?'比較なし':fmtDelta(value)+unit}</span>`;}
+function renderLatestCustomerKpi(){
+ const store=$('store').value||TARGET,mode=$('latestTime').value;
+ const source=mode==='average'?averageTrendRows(S):S.summaries.filter(row=>row.time===Number(mode));
+ const row=source.filter(row=>row.store===store&&(!$('from').value||row.date>=$('from').value)&&(!$('to').value||row.date<=$('to').value)).sort((a,b)=>b.date.localeCompare(a.date))[0];
+ $('kLatest').textContent=Number.isFinite(row?.customers)?row.customers.toLocaleString('ja-JP'):mode==='average'&&row?'未取得':'-';
+ $('latestCustomerInfo').textContent=`${store}${row?' / '+row.date:''}${mode==='average'?(row?.complete?' / 11・15・19時平均':row?' / 3回分未取得':' / データなし'):row?'':' / データなし'}`;
+}
+$('latestTime').addEventListener('change',renderLatestCustomerKpi);
 function renderLatestCompare(){
+ renderLatestCustomerKpi();
  const store=$('store').value||TARGET;
  $('timeCompareTitle').textContent=`${store} 時間帯比較（最新日）`;
  const data=[11,15,19].flatMap(time=>trendRows(S,{time}));
