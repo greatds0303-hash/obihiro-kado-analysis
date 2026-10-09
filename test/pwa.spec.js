@@ -200,11 +200,19 @@ test('全店舗ランキングは時間・貸玉・順位基準を反映して�
   records.push({date:'2026-10-06',time,store,rate:'1.12円P',machines:total,customers:store==='競合店'?18:10,util:store==='競合店'?90:10});
  }
  await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'ranking.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records,specials:[]}))});
- const rows=page.locator('#ranking tbody tr');await expect(rows).toHaveCount(2);await expect(page.locator('#rankingContext')).toContainText('1日平均');await expect(rows.first()).toContainText('46.7');
+ const rows=page.locator('#ranking tbody tr');await expect(rows).toHaveCount(2);await page.locator('#time').selectOption('');await expect(page.locator('#rankingContext')).toContainText('1日平均');await expect(rows.first()).toContainText('46.7');
  await page.locator('#time').selectOption('15');await expect(rows.first()).toContainText('60');await expect(page.locator('#rankingContext')).toContainText('15時');await expect(rows.first()).toContainText('80%');
  await page.locator('#rankingMetric').selectOption('util');await expect(rows.first()).toContainText('競合店');await expect(rows.first()).toContainText('75%');
  await page.locator('#store').selectOption('競合店');await expect(rows).toHaveCount(2);
  await page.locator('#rankingMetric').selectOption('share');await expect(rows.first()).toContainText('イーグル');
  await page.locator('#rate').selectOption('1パチ');await expect(page.locator('#rankingContext')).toContainText('1パチ');await expect(rows.first()).toContainText('競合店');await expect(rows.first()).toContainText('64.3%');
  await page.locator('#rankingMetric').selectOption('customers');await expect(rows.first()).toContainText('18');await page.locator('#rate').selectOption('');await expect(rows.first()).toContainText('60');
+});
+
+test('時間選択を貸玉比較とグラフに連動しすべては3回平均を表示する',async({page})=>{
+ const report=[text,text.replace('2026/10/06 11時','2026/10/06 15時').replace('合計1名 2%','合計7名 11%'),text.replace('2026/10/06 11時','2026/10/06 19時').replace('合計1名 2%','合計10名 16%')].join('\n');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
+ await page.locator('#time').selectOption('15');await expect(page.locator('#rateCompare')).toContainText('15時');await expect(page.locator('#chartLabel')).toContainText('15時');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'4パチ'})).toContainText('7');
+ await page.locator('#time').selectOption('');await expect(page.locator('#rateCompare')).toContainText('11・15・19時平均');await expect(page.locator('#chartLabel')).toContainText('11・15・19時平均');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'4パチ'})).toContainText('6');
+ await page.locator('#time').selectOption('19');await expect(page.locator('#rateCompare')).toContainText('19時');await expect(page.locator('#chartLabel')).toContainText('19時');
 });

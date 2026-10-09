@@ -89,17 +89,19 @@ function renderLatestCompare(){
  $('latestCompare').innerHTML=h;
 }
 function renderRateCompare(){
- const store=$('store').value||TARGET,tm=+$('time').value||11;
- const rows=filtered('records').filter(r=>r.store===store&&r.time===tm);
+ const store=$('store').value||TARGET,time=$('time').value,average=!time;
+ const categories=uniq(S.records.map(r=>rateCategory(r.rate))).filter(rate=>!$('rate').value||rate===$('rate').value);
+ const source=categories.flatMap(rate=>(average?averageTrendRows(S,{rate}):trendRows(S,{rate,time:Number(time)})).map(r=>({...r,rate})));
+ const rows=source.filter(r=>r.store===store&&(!$('from').value||r.date>=$('from').value)&&(!$('to').value||r.date<=$('to').value));
  const latest=rows.map(r=>r.date).sort().at(-1);
  if(!latest){$('rateCompare').textContent='データなし';return;}
  const date=comparisonDate(latest,$('base').value,$('compareDate').value);
- const summary=S.summaries.find(r=>r.store===store&&r.date===latest&&r.time===tm);
- const allRates=S.records.filter(r=>r.store===store&&r.date===latest&&r.time===tm);
+ const summary=S.summaries.find(r=>r.store===store&&r.date===latest&&(average||r.time===Number(time)));
+ const allRates=S.records.filter(r=>r.store===store&&r.date===latest&&r.time===(average?summary?.time:Number(time)));
  const total=Number.isFinite(summary?.storeTotal)?summary.storeTotal:allRates.length&&allRates.every(r=>Number.isFinite(r.machines))?allRates.reduce((sum,r)=>sum+r.machines,0):null;
- $('rateCompare').innerHTML=`<div class="small">${esc(store)} / ${latest} ${tm}時<br><b>総台数 ${total==null?'未取得':total.toLocaleString('ja-JP')+'台'}</b></div>`+'<table><thead><tr><th>貸玉</th><th>台数</th><th>客数</th><th>客数差</th><th>稼働率差</th><th>シェア差</th></tr></thead><tbody>'+rows.filter(r=>r.date===latest).map(r=>{
-  const prev=S.records.find(p=>p.date===date&&p.time===tm&&p.store===store&&p.rate===r.rate),d=compareRows(r,prev);
-  return `<tr><td>${esc(r.rate)}</td><td>${r.machines==null?'未取得':r.machines+'台'}</td><td>${r.customers}</td><td>${deltaHtml(d.customers,'名')}</td><td>${deltaHtml(d.util,'pt')}</td><td>${deltaHtml(d.share,'pt')}</td></tr>`;
+ $('rateCompare').innerHTML=`<div class="small">${esc(store)} / ${latest} ${average?'11・15・19時平均':time+'時'}<br><b>総台数 ${total==null?'未取得':total.toLocaleString('ja-JP')+'台'}</b></div>`+'<table><thead><tr><th>貸玉</th><th>台数</th><th>客数</th><th>客数差</th><th>稼働率差</th><th>シェア差</th></tr></thead><tbody>'+rows.filter(r=>r.date===latest).map(r=>{
+  const prev=source.find(p=>p.date===date&&p.store===store&&p.rate===r.rate),d=compareRows(r,prev);
+  return `<tr><td>${esc(r.rate)}</td><td>${r.machines==null?'未取得':r.machines+'台'}</td><td>${r.customers??'未取得'}</td><td>${deltaHtml(d.customers,'名')}</td><td>${deltaHtml(d.util,'pt')}</td><td>${deltaHtml(d.share,'pt')}</td></tr>`;
  }).join('')+'</tbody></table>';
 }
 function renderRanking(){
@@ -136,7 +138,7 @@ const chartColors=['#0f62fe','#c0392b','#15803d','#9333ea','#b45309','#0e7490','
 function drawChart(){
  const tm=+$('time').value||11,rate=$('rate').value,group=$('chartGroup').value;
  const filters={group,rate:group?'':rate,from:$('from').value,to:$('to').value};
- const period=$('chartPeriod').value,averages=periodTrendRows(averageTrendRows(S,filters),period),average=$('chartAggregation').value==='average',timeLabel=average?'11・15・19時平均':`${tm}時`,periodLabel={day:'毎日',week:'週間',month:'月間'}[period];
+ const period=$('chartPeriod').value,averages=periodTrendRows(averageTrendRows(S,filters),period),average=!$('time').value||$('chartAggregation').value==='average',timeLabel=average?'11・15・19時平均':`${tm}時`,periodLabel={day:'毎日',week:'週間',month:'月間'}[period];
  const rows=average?averages:periodTrendRows(trendRows(S,{...filters,time:tm}),period);
  const allStores=uniq([...S.summaries,...S.records,...S.specials].map(r=>r.store)).sort((a,b)=>a===TARGET?-1:b===TARGET?1:a.localeCompare(b,'ja'));
  const colors=new Map(allStores.map((store,i)=>[store,chartColors[i%chartColors.length]]));
@@ -209,7 +211,8 @@ function renderTrendDetails(rows,selected,time){
   return `<tr><td>${esc(r.store)}<br>${r.share}%（帯広店より${Math.round((r.share-own.share)*10)/10}pt高い）</td><td style="white-space:pre-wrap">${event?esc(event):'記載なし・未取得'}</td></tr>`;
  }).join('')+'</tbody></table>':'<p>帯広店のシェアを上回る報告店舗はありません。</p>');
 }
-['chartZoom','chartDate','chartAggregation','chartPeriod'].forEach(id=>$(id).addEventListener('change',drawChart));
+['chartZoom','chartDate','chartPeriod'].forEach(id=>$(id).addEventListener('change',drawChart));
+$('chartAggregation').addEventListener('change',()=>{$('time').value=$('chartAggregation').value==='average'?'':$('time').value||'11';renderRateCompare();renderRanking();renderTable();drawChart();});
 $('chartGroup').addEventListener('change',drawChart);
 $('chartStores').addEventListener('change',event=>{const el=event.target;if(!el.matches('input[data-store]'))return;if(el.checked)chartHidden.delete(el.dataset.store);else chartHidden.add(el.dataset.store);drawChart();});
 function csvEscape(v){v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
@@ -284,7 +287,7 @@ $('loginForm').onsubmit=async event=>{
 };
 window.addEventListener('online',async()=>{await initialized;refreshNetwork();$('syncError').textContent='';await connectApi();});window.addEventListener('offline',refreshNetwork);
 const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();file.onchange=e=>loadFiles([...e.target.files]);['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
-['from','to','time','store','rate','base','compareDate'].forEach(id=>$(id).addEventListener('change',()=>{if(['from','to'].includes(id))autoRange=false;if(id==='compareDate')$('base').value='custom';if(id==='base'&&$('base').value!=='custom')$('compareDate').value='';renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
+['from','to','time','store','rate','base','compareDate'].forEach(id=>$(id).addEventListener('change',()=>{if(['from','to'].includes(id))autoRange=false;if(id==='time')$('chartAggregation').value=$('time').value?'time':'average';if(id==='compareDate')$('base').value='custom';if(id==='base'&&$('base').value!=='custom')$('compareDate').value='';renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;renderTable()});
 ['summaryAggregation','summaryScope'].forEach(id=>$(id).addEventListener('change',renderTable));
 $('csvBtn').onclick=exportCsv;$('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=e=>e.target.files[0]&&restore(e.target.files[0]);$('clearBtn').onclick=async()=>{if(confirm('この端末のデータと未送信VMGをクリアしますか？サーバーのデータは削除されません。')){S.records=[];S.summaries=[];S.specials=[];S.mailKeys.clear();S.emails=0;S.pendingVMG=[];S.pendingEmails=[];autoRange=true;$('from').value='';$('to').value='';await saveState();updateAll();$('status').textContent='データをクリアしました。'}};
