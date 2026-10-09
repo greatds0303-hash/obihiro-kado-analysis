@@ -168,3 +168,17 @@ test('最新客数欄で各時間と全体平均を選び店舗選択も反映�
  await page.locator('#latestTime').selectOption('average');await expect(page.locator('#kLatest')).toHaveText('60');await expect(page.locator('#latestCustomerInfo')).toContainText('2026-10-06');
  await page.locator('#store').selectOption('競合店');await expect(page.locator('#kLatest')).toHaveText('12');await expect(page.locator('#latestCustomerInfo')).toContainText('競合店');
 });
+
+test('貸玉比較に選択店舗の種別台数と総台数を表示する',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();
+ const table=page.locator('#rateCompare');await expect(table).toContainText('総台数 516台');await expect(table.locator('thead')).toContainText('台数');await expect(table.locator('tbody')).toContainText('64台');
+ await page.locator('#rate').selectOption('4パチ');await expect(table).toContainText('総台数 516台');
+ await page.locator('#rate').selectOption('');await page.locator('#store').selectOption('競合店');await expect(table).toContainText('総台数 100台');await expect(table.locator('tbody')).toContainText('100台');await expect(table).not.toContainText('516台');
+});
+
+test('グラフをタッチすると店舗名と値が表示される',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();
+ await page.locator('#chart').click({position:{x:150,y:45}});await expect(page.locator('#chart').locator('..').getByRole('status')).toContainText('イーグル スクエア帯広店');await expect(page.locator('#chart').locator('..').getByRole('status')).toContainText('129名');
+ await page.locator('#chart').click({position:{x:150,y:265}});await expect(page.locator('#chart').locator('..').getByRole('status')).toContainText('競合店');await expect(page.locator('#chart').locator('..').getByRole('status')).toContainText('12名');
+ await page.locator('#shareChart').click({position:{x:150,y:45}});await expect(page.locator('#shareChart').locator('..').getByRole('status')).toContainText('%');
+});
