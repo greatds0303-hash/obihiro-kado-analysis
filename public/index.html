@@ -25,7 +25,7 @@ body{padding-bottom:max(72px,env(safe-area-inset-bottom))}
 .tabs{display:flex;gap:6px;flex-wrap:wrap}.tab{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer}.tab.active{background:#172033;color:#fff}
 table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px solid #e7eaf1;padding:7px 8px;white-space:nowrap;text-align:right}th{position:sticky;top:0;background:#f8f9fc;z-index:1}th:first-child,td:first-child,th:nth-child(3),td:nth-child(3),th:nth-child(4),td:nth-child(4){text-align:left}
 .scroll{overflow:auto;max-height:480px;border:1px solid var(--line);border-radius:10px}.msg{font-size:13px;padding:8px 10px;border-radius:8px;background:#f8fafc;color:#344054;margin-top:8px}.ok{color:var(--good)}.bad{color:var(--bad)}
-canvas{width:100%;height:340px;display:block}.chart-frame{width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid #d9deea;border-radius:10px;margin:8px 0 18px;background:#fff}.market-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.market-kpis .kpi .v{font-size:26px}.market-note{padding:10px;border-radius:8px;background:#f1f5fb;margin-top:10px;line-height:1.65;font-size:13px;overflow-wrap:anywhere}.chart-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.small{font-size:12px;color:var(--muted)}
+[hidden]{display:none!important}canvas{width:100%;height:340px;display:block}.chart-frame{width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid #d9deea;border-radius:10px;margin:8px 0 18px;background:#fff}.market-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.market-kpis .kpi .v{font-size:26px}.market-note{padding:10px;border-radius:8px;background:#f1f5fb;margin-top:10px;line-height:1.65;font-size:13px;overflow-wrap:anywhere}.chart-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.small{font-size:12px;color:var(--muted)}
 .compare{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.compare .box{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fcfdff}.delta.pos{color:var(--good)}.delta.neg{color:var(--bad)}
 .bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:7px 4px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -2px 12px #0001}.bottomnav button{background:none;border:0;color:#526078;font-size:11px;font-weight:700}.bottomnav button.active{color:var(--accent)}
 .install-banner{display:none;position:fixed;left:12px;right:12px;bottom:82px;z-index:40;background:#0b2d5c;color:#fff;padding:12px;border-radius:12px;box-shadow:0 4px 20px #0004}.install-banner.show{display:block}
@@ -122,6 +122,11 @@ canvas{width:100%;height:340px;display:block}.chart-frame{width:100%;overflow-x:
       <button class="tab active" data-tab="summary">店舗総合</button>
       <button class="tab" data-tab="records">貸玉別</button>
       <button class="tab" data-tab="specials">注目機種群</button>
+    </div>
+    <div id="summaryControls" class="row" style="margin-top:10px">
+      <label>表示単位 <select id="summaryAggregation"><option value="time">時間帯別（11・15・19時）</option><option value="average">1日平均（11・15・19時）</option></select></label>
+      <label>店舗表示 <select id="summaryScope"><option value="selected">選択中の店舗</option><option value="all">全店舗まとめて</option></select></label>
+      <span class="small">1日平均は3回の平均値です。3回分がそろわない日は未取得と表示します。</span>
     </div>
     <div id="tableWrap" class="scroll" style="margin-top:10px"></div>
   </div>

@@ -182,3 +182,13 @@ test('グラフをタッチすると店舗名と値が表示される',async({pa
  await page.locator('#chart').click({position:{x:150,y:265}});await expect(page.locator('#chart').locator('..').getByRole('status')).toContainText('競合店');await expect(page.locator('#chart').locator('..').getByRole('status')).toContainText('12名');
  await page.locator('#shareChart').click({position:{x:150,y:45}});await expect(page.locator('#shareChart').locator('..').getByRole('status')).toContainText('%');
 });
+
+test('店舗総合を全店舗の日別3回平均で表示しCSVにも反映する',async({page})=>{
+ const reports=[text,text.replaceAll('2026/10/06 11時','2026/10/06 15時').replace('総合計129名','総合計159名'),text.replaceAll('2026/10/06 11時','2026/10/06 19時').replace('総合計129名','総合計189名'),text.replaceAll('2026/10/06','2026/10/07')].join('\n');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(reports);await page.locator('#pasteImportBtn').click();
+ await page.locator('#summaryAggregation').selectOption('average');await page.locator('#summaryScope').selectOption('all');
+ const rows=page.locator('#tableWrap tbody tr');await expect(rows).toHaveCount(4);await expect(rows.filter({hasText:'2026-10-06'}).filter({hasText:'イーグル'})).toContainText('159');await expect(rows.filter({hasText:'2026-10-06'}).filter({hasText:'競合店'})).toContainText('12');await expect(rows.filter({hasText:'2026-10-07'}).first()).toContainText('未取得');
+ await page.locator('#time').selectOption('15');await expect(rows).toHaveCount(4);
+ const pending=page.waitForEvent('download');await page.locator('#csvBtn').click();const download=await pending;const csv=readFileSync(await download.path(),'utf8');expect(csv).toContain('1日平均');expect(csv).toContain('競合店');
+ await page.locator('#summaryScope').selectOption('selected');await expect(rows).toHaveCount(2);await page.locator('#summaryAggregation').selectOption('time');await expect(rows).toHaveCount(1);await expect(rows.first()).toContainText('15時');
+});
