@@ -61,7 +61,7 @@ function dayDiff(date,days){return comparisonDate(date,String(days))}
 function fmtDelta(v){if(v==null||Number.isNaN(v))return '-';return(v>0?'+':'')+v}
 function updateAll(){
   const dates=uniq(S.summaries.map(x=>x.date)),stores=uniq(S.summaries.map(x=>x.store));$('kEmails').textContent=S.emails.toLocaleString();$('kDays').textContent=dates.length.toLocaleString();$('kRecords').textContent=S.records.length.toLocaleString();$('kStores').textContent=stores.length;$('kRange').textContent=dates.length?`${dates[0].slice(5).replace('-','/')}〜${dates.at(-1).slice(5).replace('-','/')}`:'-';
-  fillSelect('store',stores,TARGET);const groupSelect=$('chartGroup'),selectedGroup=groupSelect.value;groupSelect.innerHTML='<option value="">全体・貸玉種別で比較</option>'+uniq(S.specials.map(r=>r.group)).map(group=>`<option>${esc(group)}</option>`).join('');groupSelect.value=selectedGroup;fillSelect('rate',uniq(S.records.map(x=>rateCategory(x.rate))));if(dates.length&&autoRange){$('from').value=dates[0];$('to').value=dates.at(-1)}
+  fillSelect('store',stores,TARGET);const groupSelect=$('chartGroup'),selectedGroup=groupSelect.value;groupSelect.innerHTML='<option value="">全体・貸玉種別で比較</option>'+uniq(S.specials.map(r=>r.group)).map(group=>`<option>${esc(group)}</option>`).join('');groupSelect.value=selectedGroup;fillSelect('rate',uniq(S.records.map(x=>rateCategory(x.rate))));if(dates.length&&autoRange){$('from').value=dates.at(-1).slice(0,4)+'-07-04';if($('from').value>dates.at(-1))$('from').value=dates[0];$('to').value=dates.at(-1)}
   renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();refreshNetwork()
 }
 
@@ -110,7 +110,7 @@ function renderRateCompare(){
  const total=Number.isFinite(summary?.storeTotal)?summary.storeTotal:allRates.length&&allRates.every(r=>Number.isFinite(r.machines))?allRates.reduce((sum,r)=>sum+r.machines,0):null;
  $('rateCompare').innerHTML=`<div class="small">${esc(store)} / ${rangeMode()?$('from').value+'〜'+$('to').value+' / 期間平均':latest} ${average?'11・15・19時平均':time+'時'}<br><b>総台数 ${total==null?'未取得':total.toLocaleString('ja-JP')+'台'}</b></div>`+'<table><thead><tr><th>貸玉</th><th>台数</th><th>客数</th><th>客数差</th><th>稼働率差</th><th>シェア差</th></tr></thead><tbody>'+rows.filter(r=>r.date===latest).map(r=>{
   const prev=rangeMode()?selectedRange(rawSource.filter(p=>p.rate===r.rate),true).find(p=>p.store===store):source.find(p=>p.date===date&&p.store===store&&p.rate===r.rate),d=compareRows(r,prev);
-  return `<tr><td>${esc(r.rate)}</td><td>${r.machines==null?'未取得':r.machines+'台'}</td><td>${r.customers??'未取得'}</td><td>${deltaHtml(d.customers,'名')}</td><td>${deltaHtml(d.util,'pt')}</td><td>${deltaHtml(d.share,'pt')}</td></tr>`;
+  return `<tr><td>${esc(store===TARGET&&r.rate==='4パチ'?'2.5P':r.rate)}</td><td>${r.machines==null?'未取得':r.machines+'台'}</td><td>${r.customers??'未取得'}</td><td>${deltaHtml(d.customers,'名')}</td><td>${deltaHtml(d.util,'pt')}</td><td>${deltaHtml(d.share,'pt')}</td></tr>`;
  }).join('')+'</tbody></table>';
 }
 function renderRanking(){
@@ -155,13 +155,18 @@ function renderDetailCharts(){
  const time=$('detailTime').value==='linked'?$('time').value:$('detailTime').value,average=!time||time==='average';
  const filters={from,to,...(type==='records'?{rate:category}:{group:category})};
  const raw=category&&(from<=to||!from||!to)?(average?averageTrendRows(S,filters):trendRows(S,{...filters,time:Number(time)})):[];
- const rows=periodTrendRows(raw,period),allStores=uniq([...S.summaries,...S.records,...S.specials].map(r=>r.store)),colors=new Map(allStores.map((store,i)=>[store,chartColors[i%chartColors.length]]));
+ const rows=periodTrendRows(raw,period),historyFilters={...filters,from:'',to:''},history=periodTrendRows(category?(average?averageTrendRows(S,historyFilters):trendRows(S,{...historyFilters,time:Number(time)})):[],period),allStores=uniq([...S.summaries,...S.records,...S.specials].map(r=>r.store)),colors=new Map(allStores.map((store,i)=>[store,chartColors[i%chartColors.length]]));
  const stores=uniq(rows.map(r=>r.store)).filter(store=>$('detailScope').value==='all'||!$('store').value||store===$('store').value),dates=uniq(rows.map(r=>r.date));
  detailSelectedDate=dates.includes(detailSelectedDate)?detailSelectedDate:dates.at(-1)||'';
  $('detailChartContext').textContent=`${category||'カテゴリー未取得'} / ${from||'開始日指定なし'}〜${to||'終了日指定なし'} / ${average?'11・15・19時平均':time+'時'} / ${{day:'毎日',week:'週間',month:'月間'}[period]} / ${stores.length}店舗${from&&to&&from>to?' / 開始日は終了日以前にしてください':''}`;
  $('detailLegend').innerHTML=stores.map(store=>`<span style="color:${colors.get(store)};padding:5px">● ${esc(store)}</span>`).join('');
  const val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
- $('detailChartValues').innerHTML='<table><thead><tr><th>日付・期間</th><th>店舗</th><th>客数</th><th>シェア</th><th>稼働率</th></tr></thead><tbody>'+rows.filter(r=>stores.includes(r.store)).map(r=>`<tr><td>${r.date}${r.periodEnd?'〜'+r.periodEnd:''}</td><td>${esc(r.store)}</td><td>${val(r.customers)}</td><td>${val(r.share,'%')}</td><td>${val(r.util,'%')}</td></tr>`).join('')+'</tbody></table>';
+ const diff=(v,unit)=>v==null?'比較なし':`<span style="color:${v<0?'#c13d3d':'#172033'}">${v>0?'+':''}${v}${unit}</span>`;
+ $('detailChartValues').innerHTML='<table><thead><tr><th>日付・期間</th><th>店舗</th><th>平均客数</th><th>シェア</th><th>稼働率</th><th>比較期間</th><th>客数差</th><th>シェア差</th></tr></thead><tbody>'+rows.filter(r=>stores.includes(r.store)).map(r=>{
+  const prior=comparisonDate(r.date,period==='month'?'month':period==='week'?'7':'1'),prev=history.find(p=>p.date===prior&&p.store===r.store),d=compareRows(r,prev);
+  return `<tr><td>${r.date}${r.periodEnd?'〜'+r.periodEnd:''}</td><td>${esc(r.store)}</td><td>${val(r.customers)}</td><td>${val(r.share,'%')}</td><td>${val(r.util,'%')}</td><td>${prior||'なし'}</td><td>${diff(d.customers,'名')}</td><td>${diff(d.share,'pt')}</td></tr>`;
+ }).join('')+'</tbody></table>';
+
  for(const [id,key,unit] of [['detailCustomers','customers','名'],['detailShare','share','%'],['detailUtil','util','%']]){
   $(id).setAttribute('aria-label',`${category} ${key} ${stores.length}店舗`);
   drawTrend($(id),{rows,dates,stores,colors,key,unit,target:TARGET,date:detailSelectedDate,wide:$('detailZoom').value==='wide',onDate:day=>{detailSelectedDate=day;renderDetailCharts();}});
