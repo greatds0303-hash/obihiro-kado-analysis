@@ -67,7 +67,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
       <div class="kpi"><div class="v" id="kDays">0</div><div class="l">日数</div></div>
       <div class="kpi"><div class="v" id="kRecords">0</div><div class="l">貸玉レコード</div></div>
       <div class="kpi"><div class="v" id="kStores">0</div><div class="l">店舗数</div></div>
-      <div class="kpi"><div class="v" id="kLatest">-</div><label class="l" for="latestTime">最新客数（時間帯）</label><select id="latestTime" style="width:100%;padding:7px;border:1px solid var(--line);border-radius:8px;background:white;margin-top:6px"><option value="11">11時</option><option value="15">15時</option><option value="19">19時</option><option value="average">全体（3回平均）</option></select><div class="small" id="latestCustomerInfo" style="margin-top:5px"></div></div>
+      <div class="kpi"><div class="v" id="kLatest">-</div><label class="l" for="latestTime">最新客数（時間帯）</label><select id="latestTime" style="width:100%;padding:7px;border:1px solid var(--line);border-radius:8px;background:white;margin-top:6px"><option value="11">11時</option><option value="15">15時</option><option value="19">19時</option><option value="average" selected>全体（3回平均）</option></select><div class="small" id="latestCustomerInfo" style="margin-top:5px"></div></div>
       <div class="kpi"><div class="v" id="kRange">-</div><div class="l">期間</div></div>
     </div>
   </div>
@@ -87,7 +87,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
     <div class="filters">
       <div class="field"><label>開始日</label><input type="date" id="from"></div>
       <div class="field"><label>終了日</label><input type="date" id="to"></div>
-      <div class="field"><label>時間</label><select id="time"><option value="">すべて</option><option selected>11</option><option>15</option><option>19</option></select></div>
+      <div class="field"><label>時間</label><select id="time"><option value="">すべて</option><option>11</option><option>15</option><option>19</option></select></div>
       <div class="field"><label>店舗</label><select id="store"><option value="">すべて</option></select></div>
       <div class="field"><label>貸玉</label><select id="rate"><option value="">すべて</option></select></div>
       <div class="field"><label for="compareDate">比較開始日（単日も指定可）</label><input type="date" id="compareDate"></div><div class="field"><label for="compareEnd">比較終了日（期間指定）</label><input type="date" id="compareEnd"></div><div class="field"><label>比較</label><select id="base"><option value="1">前日</option><option value="7" selected>前週</option><option value="28">4週前</option><option value="month">前月同日</option><option value="custom">日付を自由に指定</option><option value="range">期間平均を比較</option></select></div>
@@ -99,12 +99,12 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
     <div class="compare" id="latestCompare" style="margin-top:10px"></div>
   </div>
 
-  <div class="card"><b>貸玉別 客数・稼働率・シェア比較</b><div class="field" style="margin-top:10px"><label for="rateCompareTime">比較する時間（他の表示にも連動）</label><select id="rateCompareTime"><option value="11">11時</option><option value="15">15時</option><option value="19">19時</option><option value="">全体（11・15・19時平均）</option></select></div><div id="rateCompare" class="scroll" style="margin-top:10px"></div></div>
+  <div class="card"><b>貸玉別 客数・稼働率・シェア比較</b><div class="field" style="margin-top:10px"><label for="rateCompareTime">比較する時間（他の表示にも連動）</label><select id="rateCompareTime"><option value="11">11時</option><option value="15">15時</option><option value="19">19時</option><option value="" selected>全体（11・15・19時平均）</option></select></div><div id="rateCompare" class="scroll" style="margin-top:10px"></div></div>
   <div class="card">
     <div class="row" style="justify-content:space-between"><b>帯広店・競合店 推移比較</b><span class="small" id="chartLabel"></span></div>
     <p class="small">日付・時間・貸玉で絞り込みできます。時間「すべて」は11・15・19時平均を表示。店舗のチェックで表示を切り替えます。</p>
     <div class="field"><label for="chartGroup">機種名（選択時は機種別比較）</label><select id="chartGroup"><option value="">全体・貸玉種別で比較</option></select></div>
-    <div class="field"><label for="chartPeriod">集計期間</label><select id="chartPeriod"><option value="day">毎日</option><option value="week">週間（月曜〜日曜）</option><option value="month">月間</option></select></div><div class="field"><label for="chartAggregation">時間帯別・日平均</label><select id="chartAggregation"><option value="time">時間帯別（上で時間を選択）</option><option value="average">11・15・19時平均</option></select></div><div class="chart-controls"><div class="field"><label for="chartZoom">グラフ表示</label><select id="chartZoom"><option value="fit">画面に合わせる</option><option value="wide">拡大（横にスクロール）</option></select></div></div><p class="small">灰色の棒：全報告店舗の客数（右軸）／色の線：店舗別の推移（左軸）。グラフをタップすると、その日の数値とイベントを表示します。</p><p class="small" id="chartScope"></p><div class="row" id="chartStores"></div>
+    <div class="field"><label for="chartPeriod">集計期間</label><select id="chartPeriod"><option value="day">毎日</option><option value="week">週間（月曜〜日曜）</option><option value="month">月間</option></select></div><div class="field"><label for="chartAggregation">時間帯別・日平均</label><select id="chartAggregation"><option value="time">時間帯別（上で時間を選択）</option><option value="average" selected>11・15・19時平均</option></select></div><div class="chart-controls"><div class="field"><label for="chartZoom">グラフ表示</label><select id="chartZoom"><option value="fit">画面に合わせる</option><option value="wide">拡大（横にスクロール）</option></select></div></div><p class="small">灰色の棒：全報告店舗の客数（右軸）／色の線：店舗別の推移（左軸）。グラフをタップすると、その日の数値とイベントを表示します。</p><p class="small" id="chartScope"></p><div class="row" id="chartStores"></div>
     <b>客数（名）</b><div class="chart-frame"><canvas id="chart" role="img"></canvas></div>
     <b>客数シェア（%）</b><div class="chart-frame"><canvas id="shareChart" role="img"></canvas></div>
     <p class="small">シェアは客数データから計算します。毎日は同日時・同種別の全報告店舗が母数。週間・月間は期間内の客数合計からシェアを計算し、客数は取得日の1日平均を表示します。未報告日は0として扱いません。</p>
