@@ -67,11 +67,14 @@ function updateAll(){
 
 function deltaHtml(value,unit){return `<span class="delta ${value>0?'pos':value<0?'neg':''}">${value==null?'比較なし':fmtDelta(value)+unit}</span>`;}
 function renderLatestCompare(){
- const rows=S.summaries.filter(x=>x.store===TARGET&&(!$('from').value||x.date>=$('from').value)&&(!$('to').value||x.date<=$('to').value)).sort((a,b)=>b.date.localeCompare(a.date));
+ const store=$('store').value||TARGET;
+ $('timeCompareTitle').textContent=`${store} 時間帯比較（最新日）`;
+ const data=[11,15,19].flatMap(time=>trendRows(S,{time}));
+ const rows=data.filter(x=>x.store===store&&(!$('from').value||x.date>=$('from').value)&&(!$('to').value||x.date<=$('to').value)).sort((a,b)=>b.date.localeCompare(a.date));
  if(!rows.length){$('latestCompare').innerHTML='<div class="msg">データなし</div>';return;}
  const latest=rows[0].date,baseDate=comparisonDate(latest,$('base').value);let h='';
  for(const tm of [11,15,19]){
-  const cur=S.summaries.find(x=>x.store===TARGET&&x.date===latest&&x.time===tm),prev=baseDate?S.summaries.find(x=>x.store===TARGET&&x.date===baseDate&&x.time===tm):null,d=compareRows(cur,prev);
+  const cur=data.find(x=>x.store===store&&x.date===latest&&x.time===tm),prev=baseDate?data.find(x=>x.store===store&&x.date===baseDate&&x.time===tm):null,d=compareRows(cur,prev);
   h+=`<div class="box"><div class="small">${tm}時 / ${latest}</div><div style="font-size:27px;font-weight:800">${cur?cur.customers:'-'}<span class="small">名</span></div><div class="small">稼働率 ${cur?.util!=null?cur.util+'%':'-'} / シェア ${cur?.share!=null?cur.share+'%':'-'}${cur?.derived?'（総合は算出）':''}</div><div class="small">比較 ${baseDate||'同日なし'}<br>客数 ${deltaHtml(d.customers,'名')}<br>稼働率 ${deltaHtml(d.util,'pt')} / シェア ${deltaHtml(d.share,'pt')}</div></div>`;
  }
  $('latestCompare').innerHTML=h;
