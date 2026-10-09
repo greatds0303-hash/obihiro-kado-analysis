@@ -94,9 +94,12 @@ function renderRateCompare(){
  const latest=rows.map(r=>r.date).sort().at(-1);
  if(!latest){$('rateCompare').textContent='データなし';return;}
  const date=comparisonDate(latest,$('base').value,$('compareDate').value);
- $('rateCompare').innerHTML='<table><thead><tr><th>貸玉</th><th>客数</th><th>客数差</th><th>稼働率差</th><th>シェア差</th></tr></thead><tbody>'+rows.filter(r=>r.date===latest).map(r=>{
+ const summary=S.summaries.find(r=>r.store===store&&r.date===latest&&r.time===tm);
+ const allRates=S.records.filter(r=>r.store===store&&r.date===latest&&r.time===tm);
+ const total=Number.isFinite(summary?.storeTotal)?summary.storeTotal:allRates.length&&allRates.every(r=>Number.isFinite(r.machines))?allRates.reduce((sum,r)=>sum+r.machines,0):null;
+ $('rateCompare').innerHTML=`<div class="small">${esc(store)} / ${latest} ${tm}時<br><b>総台数 ${total==null?'未取得':total.toLocaleString('ja-JP')+'台'}</b></div>`+'<table><thead><tr><th>貸玉</th><th>台数</th><th>客数</th><th>客数差</th><th>稼働率差</th><th>シェア差</th></tr></thead><tbody>'+rows.filter(r=>r.date===latest).map(r=>{
   const prev=S.records.find(p=>p.date===date&&p.time===tm&&p.store===store&&p.rate===r.rate),d=compareRows(r,prev);
-  return `<tr><td>${esc(r.rate)}</td><td>${r.customers}</td><td>${deltaHtml(d.customers,'名')}</td><td>${deltaHtml(d.util,'pt')}</td><td>${deltaHtml(d.share,'pt')}</td></tr>`;
+  return `<tr><td>${esc(r.rate)}</td><td>${r.machines==null?'未取得':r.machines+'台'}</td><td>${r.customers}</td><td>${deltaHtml(d.customers,'名')}</td><td>${deltaHtml(d.util,'pt')}</td><td>${deltaHtml(d.share,'pt')}</td></tr>`;
  }).join('')+'</tbody></table>';
 }
 function renderRanking(){

@@ -5,6 +5,7 @@ function axis(max){
  return {step,max:Math.ceil(Math.max(max,1)/step)*step};
 }
 export function drawTrend(canvas,{rows,dates,stores,colors,key,unit,target,date,wide,onDate,totalLabel='全店客数'}){
+ canvas.parentElement.querySelector('.chart-touch-info')?.remove();
  const viewport=canvas.parentElement.clientWidth||390;
  const W=wide?Math.max(viewport,dates.length*44+120,720):viewport,H=340,dpr=window.devicePixelRatio||1;
  canvas.style.width=`${W}px`;canvas.style.height=`${H}px`;canvas.width=W*dpr;canvas.height=H*dpr;
@@ -33,5 +34,16 @@ export function drawTrend(canvas,{rows,dates,stores,colors,key,unit,target,date,
   dates.forEach((day,i)=>{const v=data.get(day)?.[key];if(!Number.isFinite(v))return;ctx.beginPath();ctx.arc(x(i),y(v),day===date?4:2.5,0,Math.PI*2);ctx.fill();});
  }
  ctx.fillStyle='#475569';ctx.textAlign='left';ctx.fillText(`${dates[0]} 〜 ${dates.at(-1)}`,pad.l,H-5);
- canvas.onclick=event=>{const px=event.clientX-canvas.getBoundingClientRect().left;const i=dates.length===1?0:Math.max(0,Math.min(dates.length-1,Math.round((px-pad.l)/plotW*(dates.length-1))));onDate(dates[i]);};
+ canvas.onclick=event=>{
+  const rect=canvas.getBoundingClientRect(),px=event.clientX-rect.left,py=event.clientY-rect.top;
+  const i=dates.length===1?0:Math.max(0,Math.min(dates.length-1,Math.round((px-pad.l)/plotW*(dates.length-1))));
+  const candidates=rows.filter(r=>r.date===dates[i]&&stores.includes(r.store)&&Number.isFinite(r[key]));
+  candidates.sort((a,b)=>Math.abs(y(a[key])-py)-Math.abs(y(b[key])-py));
+  const row=candidates[0];onDate(dates[i]);
+  if(!row)return;
+  const info=document.createElement('div');info.className='chart-touch-info';info.setAttribute('role','status');
+  info.textContent=`${row.store} / ${dates[i]} / ${row[key].toLocaleString('ja-JP')}${unit}`;
+  info.style.cssText='position:sticky;left:0;padding:10px;background:#f1f5fb;border-top:1px solid #cbd5e1;font-size:14px;font-weight:700;white-space:normal;overflow-wrap:anywhere;';
+  canvas.parentElement.append(info);
+ };
 }
