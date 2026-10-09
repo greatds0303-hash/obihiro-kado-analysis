@@ -16,7 +16,13 @@ export function mergeRows(local,incoming,kind){
  const rows=new Map();for(const r of [...local,...incoming])rows.set(key(r),r);
  return [...rows.values()];
 }
-export function rateCategory(rate){return ['12.5円S','20円S'].includes(rate)?'20スロ':rate;}
+export function rateCategory(rate){
+ const match=String(rate).normalize('NFKC').replace(/\s+/g,'').match(/^(\d+(?:\.\d+)?)円?S$/i);
+ if(!match)return rate;const price=Number(match[1]);
+ if(price>=5&&price<=6.25)return '5スロ';
+ if([12.5,20].includes(price))return '20スロ';
+ return rate;
+}
 export function trendRows(data,{group='',rate='',time=11,from='',to=''}={}){
  const source=(group?data.specials:rate?data.records:data.summaries)||[];
  const buckets=new Map();
@@ -30,7 +36,6 @@ export function trendRows(data,{group='',rate='',time=11,from='',to=''}={}){
   const customers=rows.reduce((sum,r)=>sum+r.customers,0),machines=rows.every(r=>Number.isFinite(r.machines))?rows.reduce((sum,r)=>sum+r.machines,0):null;
   return {...rows[0],customers,machines,util:machines>0?Math.round(customers/machines*1000)/10:null,share:null};
  });
- const incomplete=new Set(result.filter(r=>!Number.isFinite(r.share)).map(r=>JSON.stringify([r.date,r.time])));
  const totals=new Map();for(const row of result){const key=JSON.stringify([row.date,row.time]);totals.set(key,(totals.get(key)||0)+row.customers);}
- return result.map(row=>{if(Number.isFinite(row.share)&&!incomplete.has(JSON.stringify([row.date,row.time])))return {...row,shareSource:'mail'};const total=totals.get(JSON.stringify([row.date,row.time]));return {...row,share:total>0?Math.round(row.customers/total*1000)/10:null,shareSource:'calculated'};});
+ return result.map(row=>{const total=totals.get(JSON.stringify([row.date,row.time]));return {...row,share:total>0?Math.round(row.customers/total*1000)/10:null,shareSource:'calculated'};});
 }

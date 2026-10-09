@@ -28,3 +28,14 @@ test('シェア欠測店舗がある日時では全店舗を同じ母数で算�
  const result=trendRows({summaries:[{date:'2026-10-06',time:11,store:'A',customers:25,share:10},{date:'2026-10-06',time:11,store:'B',customers:75,share:null}]});
  assert.deepEqual(result.map(r=>r.share),[25,75]);
 });
+test('全店舗に記載シェアがあっても客数から毎回計算する',async()=>{
+ const {trendRows}=await import('../public/analysis.js');
+ const rows=trendRows({summaries:[{date:'2026-10-06',time:11,store:'A',customers:25,share:99},{date:'2026-10-06',time:11,store:'B',customers:75,share:1}]});
+ assert.deepEqual(rows.map(r=>r.share),[25,75]);assert.ok(rows.every(r=>r.shareSource==='calculated'));
+});
+test('5・5.6・5.61・6.25スロを同じ5スロカテゴリーで集計する',async()=>{
+ const {trendRows,rateCategory}=await import('../public/analysis.js');
+ for(const rate of ['5円S','5.6円S','5.61円S','6.25円S','6.25S'])assert.equal(rateCategory(rate),'5スロ');
+ const rows=trendRows({records:[{date:'2026-10-06',time:11,store:'A',rate:'6.25円S',customers:20,machines:100},{date:'2026-10-06',time:11,store:'B',rate:'5.61円S',customers:60,machines:200}]},{rate:'5スロ'});
+ assert.deepEqual(rows.map(r=>r.share),[25,75]);
+});

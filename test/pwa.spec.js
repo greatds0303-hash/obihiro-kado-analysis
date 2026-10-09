@@ -79,7 +79,7 @@ test('12.5円Sを20スロカテゴリーとして表示する',async({page})=>{
  await expect(page.locator('#tableWrap')).toContainText('34');
 });
 test('機種別の全店シェアと勝っている店舗のイベントを表示・再取込で補完',async({page})=>{
- const report=text.replace('スマスロ【30台】 10名 33%','ジャグラー【30台】 6名20%\n4.5 9時開店 来店ポイント交換会').replace('総合計12名 12%','総合計12名 12%\n客数シェア 30%\nジャグラー【60台】 18名30%\n新台入替');
+ const report=text.replace('スマスロ【30台】 10名 33%','ジャグラー【30台】 6名20%\n4.5 9時開店 来店ポイント交換会').replace('総合計12名 12%','総合計212名 21%\n客数シェア 30%\nジャグラー【60台】 18名30%\n新台入替');
  await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
  await expect(page.locator('#shareChart')).toBeVisible();await expect(page.locator('#eventCompare')).toContainText('新台入替');
  await page.locator('#chartGroup').selectOption('ジャグラー');
@@ -91,7 +91,7 @@ test('機種別の全店シェアと勝っている店舗のイベントを表�
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
 test('サーバー連携でも重複メールのイベント補完を送信する',async({page})=>{
- const report=text.replace('総合計12名 12%','総合計12名 12%\n客数シェア 30%\n新台入替');
+ const report=text.replace('総合計12名 12%','総合計212名 21%\n客数シェア 30%\n新台入替');
  await page.goto('/');await page.locator('details').filter({has:page.locator('#connectionMode')}).locator('summary').click();await page.locator('#connectionMode').selectOption('server');
  await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();await expect(page.locator('#pendingStatus')).toContainText('本文未送信 0');
  let refreshed=false;
@@ -99,4 +99,19 @@ test('サーバー連携でも重複メールのイベント補完を送信す�
  await page.route('**/api/data',async route=>{const response=await route.fetch();const data=await response.json();if(!refreshed)for(const row of data.summaries)row.event='';await route.fulfill({response,json:data});});
  await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();await expect.poll(()=>refreshed).toBeTruthy();
  await expect(page.locator('#eventCompare')).toContainText('新台入替');
+});
+test('スマホの拡大グラフ・日付選択と客数からのシェア計算',async({page})=>{
+ const rows=Array.from({length:20},(_,i)=>['イーグル スクエア帯広店','競合店'].map((store,j)=>({date:`2026-09-${String(i+1).padStart(2,'0')}`,time:11,store,customers:j?75:25,util:j?15:5,share:j?1:99,event:j?'新台入替':'',mailId:'visual'}))).flat();
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'chart.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries:rows,records:[],specials:[],mailKeys:['visual']}))});
+ await expect(page.locator('#chartValues')).toContainText('25%');await expect(page.locator('#chartValues')).toContainText('75%');
+ await page.locator('#chartZoom').selectOption('wide');
+ expect(await page.locator('#shareChart').evaluate(el=>el.clientWidth>el.parentElement.clientWidth)).toBeTruthy();
+ await page.locator('#chartDate').selectOption('2026-09-01');await expect(page.locator('#chartValues')).toContainText('2026-09-01');await expect(page.locator('#eventCompare')).toContainText('新台入替');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+ await page.locator('#chartZoom').selectOption('fit');await page.locator('#shareChart').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/obihiro-chart-mobile.png'});
+});
+test('6.25Sと5.61Sの競合店舗を5スロとして同時表示する',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text.replace('12.5円S','6.25S').replace('7.5円S','5.61S'));await page.locator('#pasteImportBtn').click();
+ await page.locator('#rate').selectOption('5スロ');await expect(page.locator('#chartStores input')).toHaveCount(2);
+ await expect(page.locator('#chartValues')).toContainText('73.9%');await expect(page.locator('#chartValues')).toContainText('26.1%');
 });

@@ -27,7 +27,8 @@ export function parseReport(text) {
   m=line.match(/^(.+?)\s*\(\s*(\d+)\s*台\s*\)$/);
   if(m){
    const rate=m[1].replace(/\s+/g,''), machines=+m[2];
-   if(/^\d+(?:\.\d+)?円[PS]$/i.test(rate)) {
+   const price=rate.match(/^(\d+(?:\.\d+)?)円?([PS])$/i);
+   if(price) {
     if(!date||!store) continue;
     let male=null,female=null,customers=null,util=null,share=null;
     for(let j=i+1;j<Math.min(i+7,lines.length);j++){
@@ -38,7 +39,7 @@ export function parseReport(text) {
      const c=l.match(/^客数シェア\s*(\d+(?:\.\d+)?)\s*%$/);
      if(a){male=+a[1];female=+a[2];} if(b){customers=+b[1];util=+b[2];} if(c)share=+c[1];
     }
-    if(customers!==null&&util!==null){const r={...context(),rate:rate.toUpperCase(),machines,male,female,customers,util,share};result.records.push(r);group().rates.push(r);}
+    if(customers!==null&&util!==null){const r={...context(),rate:`${price[1]}円${price[2].toUpperCase()}`,machines,male,female,customers,util,share};result.records.push(r);group().rates.push(r);}
    }else{store=normalizeStore(m[1]);storeTotal=machines;if(date)group();}
    continue;
   }

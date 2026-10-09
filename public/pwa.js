@@ -1,5 +1,6 @@
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
 import {comparisonDate,compareRows,mergeRows,trendRows,rateCategory} from './analysis.js';
+import {drawTrend} from './trend-chart.js';
 import {request} from './api-client.js';
 
 const S={records:[],summaries:[],specials:[],mailKeys:new Set(),emails:0,pendingVMG:[],pendingEmails:[],connectionMode:'manual',syncSnapshot:null,tab:'summary'};
@@ -101,38 +102,28 @@ const chartColors=['#0f62fe','#c0392b','#15803d','#9333ea','#b45309','#0e7490','
 function drawChart(){
  const tm=+$('time').value||11,rate=$('rate').value,group=$('chartGroup').value;
  const rows=trendRows(S,{group,rate:group?'':rate,time:tm,from:$('from').value,to:$('to').value});
- const stores=uniq(rows.map(r=>r.store)).sort((a,b)=>a===TARGET?-1:b===TARGET?1:a.localeCompare(b,'ja'));
+ const allStores=uniq([...S.summaries,...S.records,...S.specials].map(r=>r.store)).sort((a,b)=>a===TARGET?-1:b===TARGET?1:a.localeCompare(b,'ja'));
+ const colors=new Map(allStores.map((store,i)=>[store,chartColors[i%chartColors.length]]));
+ const stores=allStores.filter(store=>rows.some(r=>r.store===store));
  $('chartLabel').textContent=`${tm}時 / ${group||rate||'店舗総合'}`;
- $('chartStores').innerHTML=stores.map((store,i)=>`<label style="color:${chartColors[i%chartColors.length]};display:flex;align-items:center;gap:6px;padding:8px"><input type="checkbox" data-store="${esc(store)}" ${chartHidden.has(store)?'':'checked'}>${esc(store)}</label>`).join('');
+ $('chartStores').innerHTML=stores.map((store,i)=>`<label style="color:${colors.get(store)};display:flex;align-items:center;gap:6px;padding:8px"><input type="checkbox" data-store="${esc(store)}" ${chartHidden.has(store)?'':'checked'}>${esc(store)}</label>`).join('');
  const selected=stores.filter(store=>!chartHidden.has(store));
  const dates=uniq(rows.map(r=>r.date));
  $('chartScope').textContent=`読み取り済み ${stores.length}店舗 / 表示 ${selected.length}店舗（上の店舗フィルターに関係なく全店舗を比較）`;
+ const selectedDate=$('chartDate').value;
+ $('chartDate').innerHTML=dates.map(day=>`<option>${day}</option>`).join('');$('chartDate').value=dates.includes(selectedDate)?selectedDate:dates.at(-1)||'';
  renderTrendDetails(rows,selected,tm);
  for(const [id,key,unit] of [['chart','customers','名'],['shareChart','share','%'],['utilChart','util','%']]){
-  const c=$(id),ctx=c.getContext('2d'),dpr=window.devicePixelRatio||1,W=c.clientWidth||390,H=260;
-  c.width=W*dpr;c.height=H*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
-  c.setAttribute('aria-label',`${selected.length}店舗 ${tm}時 ${group||rate||'店舗総合'} ${key==='customers'?'客数':key==='share'?'シェア':'稼働率'}推移`);
-  const values=rows.filter(r=>selected.includes(r.store)&&Number.isFinite(r[key])).map(r=>r[key]);
-  ctx.font='11px sans-serif';ctx.fillStyle='#667085';
-  if(!values.length){ctx.fillText('表示できるデータがありません',20,40);continue;}
-  const pad={l:46,r:18,t:18,b:34},max=Math.max(...values,key!=='customers'?100:1);
-  const x=i=>pad.l+(W-pad.l-pad.r)*(dates.length===1?.5:i/(dates.length-1)),y=v=>pad.t+(H-pad.t-pad.b)*(1-v/max);
-  ctx.strokeStyle='#d9deea';ctx.lineWidth=1;
-  for(let k=0;k<=4;k++){const yy=pad.t+(H-pad.t-pad.b)*k/4;ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(W-pad.r,yy);ctx.stroke();ctx.fillText(Math.round(max*(1-k/4))+unit,0,yy+4);}
-  for(const store of selected){
-   const data=new Map(rows.filter(r=>r.store===store).map(r=>[r.date,r]));
-   ctx.strokeStyle=ctx.fillStyle=chartColors[stores.indexOf(store)%chartColors.length];ctx.lineWidth=store===TARGET?3:2;ctx.beginPath();let connected=false;
-   dates.forEach((date,i)=>{const v=data.get(date)?.[key];if(!Number.isFinite(v)){connected=false;return;}if(connected)ctx.lineTo(x(i),y(v));else ctx.moveTo(x(i),y(v));connected=true;});ctx.stroke();
-   dates.forEach((date,i)=>{const v=data.get(date)?.[key];if(!Number.isFinite(v))return;ctx.beginPath();ctx.arc(x(i),y(v),3,0,Math.PI*2);ctx.fill();});
-  }
-  ctx.fillStyle='#667085';const step=Math.max(1,Math.ceil(dates.length/Math.max(2,Math.floor(W/65))));
-  dates.forEach((date,i)=>{if(i%step===0||i===dates.length-1)ctx.fillText(date.slice(5).replace('-','/'),x(i)-14,H-10);});
+  const canvas=$(id);
+  canvas.setAttribute('aria-label',`${selected.length}店舗 ${tm}時 ${group||rate||'店舗総合'} ${key==='customers'?'客数':key==='share'?'シェア':'稼働率'}推移`);
+  drawTrend(canvas,{rows,dates,stores:selected,colors,key,unit,target:TARGET,date:$('chartDate').value,wide:$('chartZoom').value==='wide',onDate:day=>{$('chartDate').value=day;drawChart();}});
  }
 }
+
 function renderTrendDetails(rows,selected,time){
- const latest=rows.map(r=>r.date).sort().at(-1);
+ const latest=$('chartDate').value;
  const current=rows.filter(r=>r.date===latest).sort((a,b)=>(b.share??-1)-(a.share??-1));
- $('chartValues').innerHTML='<table><thead><tr><th>最新日 / 店舗</th><th>客数</th><th>シェア</th></tr></thead><tbody>'+current.filter(r=>selected.includes(r.store)).map(r=>`<tr><td>${r.date}<br>${esc(r.store)}</td><td>${r.customers}名</td><td>${r.share==null?'未報告':r.share+'%'}${r.shareSource==='calculated'?'（算出）':''}</td></tr>`).join('')+'</tbody></table>';
+ $('chartValues').innerHTML='<table><thead><tr><th>選択日 / 店舗</th><th>客数</th><th>シェア</th></tr></thead><tbody>'+current.filter(r=>selected.includes(r.store)).map(r=>`<tr><td>${r.date}<br>${esc(r.store)}</td><td>${r.customers}名</td><td>${r.share==null?'未報告':r.share+'%'}${r.shareSource==='calculated'?'（算出）':''}</td></tr>`).join('')+'</tbody></table>';
  const own=current.find(r=>r.store===TARGET);
  if(!own||own.share==null){$('eventCompare').textContent='この日時・種別の帯広店データがないため、シェアを比較できません。';return;}
  const winning=current.filter(r=>r.store!==TARGET&&r.share!=null&&r.share>own.share);
@@ -141,6 +132,7 @@ function renderTrendDetails(rows,selected,time){
   return `<tr><td>${esc(r.store)}<br>${r.share}%（帯広店より${Math.round((r.share-own.share)*10)/10}pt高い）</td><td style="white-space:pre-wrap">${event?esc(event):'記載なし・未取得'}</td></tr>`;
  }).join('')+'</tbody></table>':'<p>帯広店のシェアを上回る報告店舗はありません。</p>');
 }
+['chartZoom','chartDate'].forEach(id=>$(id).addEventListener('change',drawChart));
 $('chartGroup').addEventListener('change',drawChart);
 $('chartStores').addEventListener('change',event=>{const el=event.target;if(!el.matches('input[data-store]'))return;if(el.checked)chartHidden.delete(el.dataset.store);else chartHidden.add(el.dataset.store);drawChart();});
 function csvEscape(v){v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}

@@ -41,3 +41,7 @@ test('機種別客数と店舗のイベントを次の店舗に混ぜず読み�
  assert.equal(r.summaries[0].event,'4.5 9時開店 来店ポイント交換会');
  assert.equal(r.summaries[1].event,'新台入替');
 });
+test('円を省略した貸玉表記も店舗名と混同しない',()=>{
+ const r=parseReport(body.replace('12.5円S','6.25S').replace('7.5円S','5.61S'));
+ assert.equal(r.records[3].rate,'6.25円S');assert.equal(r.records[4].rate,'5.61円S');assert.equal(r.summaries.length,2);
+});
