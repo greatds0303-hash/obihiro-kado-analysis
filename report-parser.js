@@ -18,7 +18,7 @@ export function parseReport(text) {
  const context=()=>({date,time,store,storeTotal});
  const group=()=>{
   const key=JSON.stringify([date,time,store]);
-  if (!groups.has(key)) groups.set(key,{...context(),rates:[],explicit:null});
+  if (!groups.has(key)) groups.set(key,{...context(),rates:[],explicit:null,events:[]});
   return groups.get(key);
  };
  for(let i=0;i<lines.length;i++) {
@@ -45,11 +45,12 @@ export function parseReport(text) {
   m=line.match(/^総合計\s*(\d+)\s*名\s*(\d+(?:\.\d+)?)\s*%$/);
   if(m&&date&&store){const s=lines[i+1]?.match(/^客数シェア\s*(\d+(?:\.\d+)?)\s*%$/);group().explicit={...context(),customers:+m[1],util:+m[2],share:s?+s[1]:null,derived:false};continue;}
   m=line.match(/^(.+?)\s*【\s*(\d+)\s*台\s*】\s*(\d+)\s*名\s*(\d+(?:\.\d+)?)\s*%$/);
-  if(m&&date&&store)result.specials.push({...context(),group:m[1].trim(),machines:+m[2],customers:+m[3],util:+m[4]});
+  if(m&&date&&store){result.specials.push({...context(),group:m[1].trim(),machines:+m[2],customers:+m[3],util:+m[4]});continue;}
+  if(date&&store&&!/^(?:男|女|合計|客数シェア|稼働率|総合計)/.test(line)&&!/^[-=ー]+$/.test(line))group().events.push(line);
  }
  for(const g of groups.values()) {
-  if(g.explicit)result.summaries.push(g.explicit);
-  else if(g.rates.length){const customers=g.rates.reduce((n,r)=>n+r.customers,0);result.summaries.push({date:g.date,time:g.time,store:g.store,storeTotal:g.storeTotal,customers,util:g.storeTotal?Math.round(customers/g.storeTotal*1000)/10:null,share:null,derived:true});}
+  if(g.explicit)result.summaries.push({...g.explicit,event:g.events.join("\n")});
+  else if(g.rates.length){const customers=g.rates.reduce((n,r)=>n+r.customers,0);result.summaries.push({date:g.date,time:g.time,store:g.store,storeTotal:g.storeTotal,customers,util:g.storeTotal?Math.round(customers/g.storeTotal*1000)/10:null,share:null,derived:true,event:g.events.join("\n")});}
  }
  return result;
 }
