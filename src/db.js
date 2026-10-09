@@ -26,21 +26,22 @@ export function openRepository(path){
  CREATE INDEX IF NOT EXISTS rate_filter ON rate_summary(business_date,report_time,store_name,rate_name);
  CREATE INDEX IF NOT EXISTS special_filter ON special_group(business_date,report_time,store_name);
  CREATE TABLE IF NOT EXISTS sync_state(key TEXT PRIMARY KEY,value TEXT NOT NULL);`);
+ if(!db.prepare('PRAGMA table_info(store_summary)').all().some(c=>c.name==='event'))db.exec("ALTER TABLE store_summary ADD COLUMN event TEXT NOT NULL DEFAULT ''");
  const getState=key=>{const row=db.prepare('SELECT value FROM sync_state WHERE key=?').get(key);return row?JSON.parse(row.value):null;};
  const setState=(key,value)=>db.prepare('INSERT INTO sync_state VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,JSON.stringify(value));
  const tables={summaries:'store_summary',records:'rate_summary',specials:'special_group'};
- const select={summaries:'s.total_machines AS storeTotal,s.customers,s.utilization AS util,s.share,s.derived',records:'s.total_machines AS storeTotal,s.rate_name AS rate,s.machines,s.male_customers AS male,s.female_customers AS female,s.customers,s.utilization AS util,s.share',specials:'s.total_machines AS storeTotal,s.group_name AS "group",s.machines,s.customers,s.utilization AS util'};
+ const select={summaries:'s.total_machines AS storeTotal,s.customers,s.utilization AS util,s.share,s.derived,s.event',records:'s.total_machines AS storeTotal,s.rate_name AS rate,s.machines,s.male_customers AS male,s.female_customers AS female,s.customers,s.utilization AS util,s.share',specials:'s.total_machines AS storeTotal,s.group_name AS "group",s.machines,s.customers,s.utilization AS util'};
  const save=db.transaction((email,report)=>{
   const hash=contentFingerprint(email.text),id=String(email.messageId||'').trim()||null,uid=email.imapIdentity||null;
-  const existing=db.prepare('SELECT id FROM emails WHERE content_hash=? OR (message_id IS NOT NULL AND message_id=?) OR (imap_uid IS NOT NULL AND imap_uid=?)').get(hash,id,uid);
-  if(existing)return {duplicate:true,emailId:existing.id};
+  const existing=db.prepare('SELECT id,content_hash FROM emails WHERE content_hash=? OR (message_id IS NOT NULL AND message_id=?) OR (imap_uid IS NOT NULL AND imap_uid=?)').get(hash,id,uid);
+  if(existing){if(existing.content_hash===hash){const update=db.prepare('UPDATE store_summary SET event=? WHERE email_id=? AND business_date=? AND report_time=? AND store_name=?');for(const r of report.summaries)update.run(r.event||'',existing.id,r.date,r.time,r.store);}return {duplicate:true,emailId:existing.id};}
   const row=db.prepare('INSERT INTO emails(message_id,imap_uid,content_hash,subject,sender,received_at,synced_at) VALUES (?,?,?,?,?,?,?)').run(id,uid,hash,email.subject||'',email.sender||'',email.receivedAt||null,new Date().toISOString());
   const emailId=Number(row.lastInsertRowid);
   const common=r=>[emailId,r.date,r.time,r.store,r.storeTotal??null];
-  const summary=db.prepare('INSERT INTO store_summary(email_id,business_date,report_time,store_name,total_machines,customers,utilization,share,derived) VALUES (?,?,?,?,?,?,?,?,?)');
+  const summary=db.prepare('INSERT INTO store_summary(email_id,business_date,report_time,store_name,total_machines,customers,utilization,share,derived,event) VALUES (?,?,?,?,?,?,?,?,?,?)');
   const rate=db.prepare('INSERT INTO rate_summary(email_id,business_date,report_time,store_name,total_machines,rate_name,machines,male_customers,female_customers,customers,utilization,share) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
   const special=db.prepare('INSERT INTO special_group(email_id,business_date,report_time,store_name,total_machines,group_name,machines,customers,utilization) VALUES (?,?,?,?,?,?,?,?,?)');
-  for(const r of report.summaries)summary.run(...common(r),r.customers??null,r.util??null,r.share??null,r.derived?1:0);
+  for(const r of report.summaries)summary.run(...common(r),r.customers??null,r.util??null,r.share??null,r.derived?1:0,r.event||'');
   for(const r of report.records)rate.run(...common(r),r.rate,r.machines??null,r.male??null,r.female??null,r.customers??null,r.util??null,r.share??null);
   for(const r of report.specials)special.run(...common(r),r.group,r.machines??null,r.customers??null,r.util??null);
   return {duplicate:false,emailId};

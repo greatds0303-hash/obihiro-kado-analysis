@@ -47,3 +47,10 @@ test('子行の保存失敗はメールもロールバック',()=>{
  assert.equal(r.getData().emails,0);
  }finally{r.close();}
 });
+test('イベントを保存し再取り込みで古いメールにも追記できる',()=>{
+ const r=openRepository(':memory:');try{
+ const e={...email,text:text+'\n新台入替'};
+ r.saveEmail(e,{summaries:[{date:'2026-10-06',time:11,store:'競合店',customers:12}],records:[],specials:[]});
+ ingestEmail(r,e);assert.equal(r.query('summaries',{store:'競合店'})[0].event,'新台入替');
+ }finally{r.close();}
+});

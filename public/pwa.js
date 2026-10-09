@@ -1,5 +1,5 @@
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
-import {comparisonDate,compareRows,mergeRows} from './analysis.js';
+import {comparisonDate,compareRows,mergeRows,trendRows,rateCategory} from './analysis.js';
 import {request} from './api-client.js';
 
 const S={records:[],summaries:[],specials:[],mailKeys:new Set(),emails:0,pendingVMG:[],pendingEmails:[],connectionMode:'manual',syncSnapshot:null,tab:'summary'};
@@ -12,7 +12,7 @@ function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,
 let autoRange=true,busy=false,networkReachable=true;
 function cleanRows(rows,kind){
  if(!Array.isArray(rows))return [];
- return rows.filter(r=>r&&validDate(r.date)&&[11,15,19].includes(Number(r.time))&&typeof r.store==='string'&&typeof r.customers==='number'&&Number.isFinite(r.customers)&&r.customers>=0&&(kind!=='records'||typeof r.rate==='string')&&(kind!=='specials'||typeof r.group==='string')).map(r=>{const row={...r,time:Number(r.time),store:normalizeStore(r.store),derived:Boolean(r.derived)};for(const key of ['storeTotal','machines','male','female','util','share'])row[key]=Number.isFinite(r[key])&&r[key]>=0?r[key]:null;row.mailId=typeof r.mailId==='string'?r.mailId:'';return row;});
+ return rows.filter(r=>r&&validDate(r.date)&&[11,15,19].includes(Number(r.time))&&typeof r.store==='string'&&typeof r.customers==='number'&&Number.isFinite(r.customers)&&r.customers>=0&&(kind!=='records'||typeof r.rate==='string')&&(kind!=='specials'||typeof r.group==='string')).map(r=>{const row={...r,time:Number(r.time),store:normalizeStore(r.store),derived:Boolean(r.derived)};for(const key of ['storeTotal','machines','male','female','util','share'])row[key]=Number.isFinite(r[key])&&r[key]>=0?r[key]:null;row.event=typeof r.event==='string'?r.event:'';row.mailId=typeof r.mailId==='string'?r.mailId:'';return row;});
 }
 async function saveState(){
  let db;try{db=await openDb();const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({records:S.records,summaries:S.summaries,specials:S.specials,mailKeys:[...S.mailKeys],emails:S.emails,pendingVMG:S.pendingVMG,pendingEmails:S.pendingEmails,connectionMode:S.connectionMode,syncSnapshot:S.syncSnapshot},'main');await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=()=>j(tx.error)});return true;}
@@ -45,8 +45,7 @@ async function decodeVmg(arrayBuffer){
   const normalized=new TextEncoder().encode(normalizeText(body).replace(/\s+/g,''));
   const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',normalized))].map(n=>n.toString(16).padStart(2,'0')).join('');
   const id=chunk.match(/Message-ID:[ \t]*([^\r\n]+)/i)?.[1]?.trim()||`hash:${hash}`;
-  if(staged.mailKeys.has(id)||staged.mailKeys.has(`hash:${hash}`)||S.summaries.some(r=>r.mailHash===hash)){duplicates++;continue;}
-  staged.mailKeys.add(id);emails++;
+  if(staged.mailKeys.has(id)||staged.mailKeys.has(`hash:${hash}`)||S.summaries.some(r=>r.mailHash===hash)){duplicates++;}else{staged.mailKeys.add(id);emails++;}
   for(const kind of ['records','summaries','specials'])staged[kind]=mergeRows(staged[kind],report[kind].map(r=>({...r,mailId:id,mailHash:hash})),kind);
  }
  for(const kind of ['records','summaries','specials'])S[kind]=mergeRows(S[kind],staged[kind],kind);
@@ -56,13 +55,12 @@ async function decodeVmg(arrayBuffer){
 function uniq(a){return[...new Set(a)].sort((x,y)=>String(x).localeCompare(String(y),'ja',{numeric:true}))}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fillSelect(id,vals,preferred){const el=$(id),cur=el.value;el.innerHTML='<option value="">すべて</option>'+vals.map(v=>`<option>${esc(v)}</option>`).join('');if(vals.includes(cur))el.value=cur;else if(preferred&&vals.includes(preferred))el.value=preferred}
-function rateCategory(rate){return ['12.5円S','20円S'].includes(rate)?'20スロ':rate}
 function filtered(type){const arr=S[type==='summary'?'summaries':type],f=$('from').value,t=$('to').value,tm=$('time').value,st=$('store').value,rt=$('rate').value;return arr.filter(r=>(!f||r.date>=f)&&(!t||r.date<=t)&&(!tm||String(r.time)===tm)&&(!st||r.store===st)&&(!rt||!('rate'in r)||rateCategory(r.rate)===rt))}
 function dayDiff(date,days){return comparisonDate(date,String(days))}
 function fmtDelta(v){if(v==null||Number.isNaN(v))return '-';return(v>0?'+':'')+v}
 function updateAll(){
   const dates=uniq(S.summaries.map(x=>x.date)),stores=uniq(S.summaries.map(x=>x.store));$('kEmails').textContent=S.emails.toLocaleString();$('kDays').textContent=dates.length.toLocaleString();$('kRecords').textContent=S.records.length.toLocaleString();$('kStores').textContent=stores.length;$('kRange').textContent=dates.length?`${dates[0].slice(5).replace('-','/')}〜${dates.at(-1).slice(5).replace('-','/')}`:'-';
-  fillSelect('store',stores,TARGET);fillSelect('rate',uniq(S.records.map(x=>rateCategory(x.rate))));if(dates.length&&autoRange){$('from').value=dates[0];$('to').value=dates.at(-1)}
+  fillSelect('store',stores,TARGET);const groupSelect=$('chartGroup'),selectedGroup=groupSelect.value;groupSelect.innerHTML='<option value="">全体・貸玉種別で比較</option>'+uniq(S.specials.map(r=>r.group)).map(group=>`<option>${esc(group)}</option>`).join('');groupSelect.value=selectedGroup;fillSelect('rate',uniq(S.records.map(x=>rateCategory(x.rate))));if(dates.length&&autoRange){$('from').value=dates[0];$('to').value=dates.at(-1)}
   const latest11=[...S.summaries].filter(x=>x.store===TARGET&&x.time===11).sort((a,b)=>b.date.localeCompare(a.date))[0];$('kLatest').textContent=latest11?latest11.customers.toLocaleString():'-';renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();refreshNetwork()
 }
 
@@ -101,21 +99,23 @@ function renderTable(){
 const chartHidden=new Set();
 const chartColors=['#0f62fe','#c0392b','#15803d','#9333ea','#b45309','#0e7490','#be185d','#475569'];
 function drawChart(){
- const tm=+$('time').value||11,rate=$('rate').value;
- const rows=S[rate?'records':'summaries'].filter(r=>r.time===tm&&(!rate||rateCategory(r.rate)===rate)&&(!$('from').value||r.date>=$('from').value)&&(!$('to').value||r.date<=$('to').value));
+ const tm=+$('time').value||11,rate=$('rate').value,group=$('chartGroup').value;
+ const rows=trendRows(S,{group,rate:group?'':rate,time:tm,from:$('from').value,to:$('to').value});
  const stores=uniq(rows.map(r=>r.store)).sort((a,b)=>a===TARGET?-1:b===TARGET?1:a.localeCompare(b,'ja'));
- $('chartLabel').textContent=`${tm}時 / ${rate||'店舗総合'}`;
+ $('chartLabel').textContent=`${tm}時 / ${group||rate||'店舗総合'}`;
  $('chartStores').innerHTML=stores.map((store,i)=>`<label style="color:${chartColors[i%chartColors.length]};display:flex;align-items:center;gap:6px;padding:8px"><input type="checkbox" data-store="${esc(store)}" ${chartHidden.has(store)?'':'checked'}>${esc(store)}</label>`).join('');
  const selected=stores.filter(store=>!chartHidden.has(store));
  const dates=uniq(rows.map(r=>r.date));
- for(const [id,key,unit] of [['chart','customers','名'],['utilChart','util','%']]){
+ $('chartScope').textContent=`読み取り済み ${stores.length}店舗 / 表示 ${selected.length}店舗（上の店舗フィルターに関係なく全店舗を比較）`;
+ renderTrendDetails(rows,selected,tm);
+ for(const [id,key,unit] of [['chart','customers','名'],['shareChart','share','%'],['utilChart','util','%']]){
   const c=$(id),ctx=c.getContext('2d'),dpr=window.devicePixelRatio||1,W=c.clientWidth||390,H=260;
   c.width=W*dpr;c.height=H*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
-  c.setAttribute('aria-label',`${selected.length}店舗 ${tm}時 ${rate||'店舗総合'} ${key==='customers'?'客数':'稼働率'}推移`);
+  c.setAttribute('aria-label',`${selected.length}店舗 ${tm}時 ${group||rate||'店舗総合'} ${key==='customers'?'客数':key==='share'?'シェア':'稼働率'}推移`);
   const values=rows.filter(r=>selected.includes(r.store)&&Number.isFinite(r[key])).map(r=>r[key]);
   ctx.font='11px sans-serif';ctx.fillStyle='#667085';
   if(!values.length){ctx.fillText('表示できるデータがありません',20,40);continue;}
-  const pad={l:46,r:18,t:18,b:34},max=Math.max(...values,key==='util'?100:1);
+  const pad={l:46,r:18,t:18,b:34},max=Math.max(...values,key!=='customers'?100:1);
   const x=i=>pad.l+(W-pad.l-pad.r)*(dates.length===1?.5:i/(dates.length-1)),y=v=>pad.t+(H-pad.t-pad.b)*(1-v/max);
   ctx.strokeStyle='#d9deea';ctx.lineWidth=1;
   for(let k=0;k<=4;k++){const yy=pad.t+(H-pad.t-pad.b)*k/4;ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(W-pad.r,yy);ctx.stroke();ctx.fillText(Math.round(max*(1-k/4))+unit,0,yy+4);}
@@ -129,9 +129,22 @@ function drawChart(){
   dates.forEach((date,i)=>{if(i%step===0||i===dates.length-1)ctx.fillText(date.slice(5).replace('-','/'),x(i)-14,H-10);});
  }
 }
+function renderTrendDetails(rows,selected,time){
+ const latest=rows.map(r=>r.date).sort().at(-1);
+ const current=rows.filter(r=>r.date===latest).sort((a,b)=>(b.share??-1)-(a.share??-1));
+ $('chartValues').innerHTML='<table><thead><tr><th>最新日 / 店舗</th><th>客数</th><th>シェア</th></tr></thead><tbody>'+current.filter(r=>selected.includes(r.store)).map(r=>`<tr><td>${r.date}<br>${esc(r.store)}</td><td>${r.customers}名</td><td>${r.share==null?'未報告':r.share+'%'}${r.shareSource==='calculated'?'（算出）':''}</td></tr>`).join('')+'</tbody></table>';
+ const own=current.find(r=>r.store===TARGET);
+ if(!own||own.share==null){$('eventCompare').textContent='この日時・種別の帯広店データがないため、シェアを比較できません。';return;}
+ const winning=current.filter(r=>r.store!==TARGET&&r.share!=null&&r.share>own.share);
+ $('eventCompare').innerHTML=`<p class="small">${latest} ${time}時 / 帯広店 ${own.share}%。イベントはメール記載内容です。</p>`+(winning.length?'<table><thead><tr><th>店舗 / シェア</th><th>イベント</th></tr></thead><tbody>'+winning.map(r=>{
+  const event=S.summaries.find(s=>s.date===latest&&s.time===time&&s.store===r.store)?.event;
+  return `<tr><td>${esc(r.store)}<br>${r.share}%（帯広店より${Math.round((r.share-own.share)*10)/10}pt高い）</td><td style="white-space:pre-wrap">${event?esc(event):'記載なし・未取得'}</td></tr>`;
+ }).join('')+'</tbody></table>':'<p>帯広店のシェアを上回る報告店舗はありません。</p>');
+}
+$('chartGroup').addEventListener('change',drawChart);
 $('chartStores').addEventListener('change',event=>{const el=event.target;if(!el.matches('input[data-store]'))return;if(el.checked)chartHidden.delete(el.dataset.store);else chartHidden.add(el.dataset.store);drawChart();});
 function csvEscape(v){v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
-function exportCsv(){const type=S.tab,rows=filtered(type);if(!rows.length){alert('出力するデータがありません');return}let cols=type==='records'?[['date','日付'],['time','時間'],['store','店舗'],['rate','貸玉'],['machines','台数'],['male','男性'],['female','女性'],['customers','客数'],['util','稼働率%'],['share','客数シェア%']]:type==='summary'?[['date','日付'],['time','時間'],['store','店舗'],['storeTotal','総台数'],['customers','客数'],['util','稼働率%'],['share','客数シェア%']]:[['date','日付'],['time','時間'],['store','店舗'],['group','機種群'],['machines','台数'],['customers','客数'],['util','稼働率%']];const csv='\ufeff'+cols.map(x=>x[1]).join(',')+'\n'+rows.map(r=>cols.map(c=>csvEscape(r[c[0]])).join(',')).join('\n');download(new Blob([csv],{type:'text/csv;charset=utf-8'}),`帯広店_稼働メール_${type}_${new Date().toISOString().slice(0,10)}.csv`)}
+function exportCsv(){const type=S.tab,rows=filtered(type);if(!rows.length){alert('出力するデータがありません');return}let cols=type==='records'?[['date','日付'],['time','時間'],['store','店舗'],['rate','貸玉'],['machines','台数'],['male','男性'],['female','女性'],['customers','客数'],['util','稼働率%'],['share','客数シェア%']]:type==='summary'?[['date','日付'],['time','時間'],['store','店舗'],['storeTotal','総台数'],['customers','客数'],['util','稼働率%'],['share','客数シェア%'],['event','イベント']]:[['date','日付'],['time','時間'],['store','店舗'],['group','機種群'],['machines','台数'],['customers','客数'],['util','稼働率%']];const csv='\ufeff'+cols.map(x=>x[1]).join(',')+'\n'+rows.map(r=>cols.map(c=>csvEscape(r[c[0]])).join(',')).join('\n');download(new Blob([csv],{type:'text/csv;charset=utf-8'}),`帯広店_稼働メール_${type}_${new Date().toISOString().slice(0,10)}.csv`)}
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
 async function loadFiles(files){
@@ -207,6 +220,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelect
 $('csvBtn').onclick=exportCsv;$('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=e=>e.target.files[0]&&restore(e.target.files[0]);$('clearBtn').onclick=async()=>{if(confirm('この端末のデータと未送信VMGをクリアしますか？サーバーのデータは削除されません。')){S.records=[];S.summaries=[];S.specials=[];S.mailKeys.clear();S.emails=0;S.pendingVMG=[];S.pendingEmails=[];autoRange=true;$('from').value='';$('to').value='';await saveState();updateAll();$('status').textContent='データをクリアしました。'}};
 document.querySelectorAll('.bottomnav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.bottomnav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById(b.dataset.target).scrollIntoView({behavior:'smooth',block:'start'})});
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBanner').classList.add('show')});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBanner').classList.remove('show')}};$('installClose').onclick=()=>$('installBanner').classList.remove('show');
+if('serviceWorker'in navigator){const updating=Boolean(navigator.serviceWorker.controller);navigator.serviceWorker.addEventListener('controllerchange',()=>{if(updating)location.reload();});}
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
 window.addEventListener('resize',drawChart);
 const initialized=loadState();
@@ -223,12 +237,12 @@ async function importPastedMail(){
   if(!normalizeText(text).replace(/\s+/g,'').includes('イーグルスクエア帯広店'))throw Error('帯広店の店舗名が見つかりません。本文全体を貼り付けてください');
   const report=parseReport(text);if(!report.summaries.length)throw Error('日時と店舗名・客数が見つかりません。本文全体を貼り付けてください');
   const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(normalizeText(text).replace(/\s+/g,''))))].map(n=>n.toString(16).padStart(2,'0')).join('');
-  const id=`hash:${hash}`;
-  if(S.mailKeys.has(id)||S.summaries.some(r=>r.mailHash===hash)){$('pasteStatus').textContent='重複メールです。既に取り込まれています。';input.value='';return;}
+  const id=S.summaries.find(r=>r.mailHash===hash)?.mailId||`hash:${hash}`;
+  const duplicate=S.mailKeys.has(id)||S.summaries.some(r=>r.mailHash===hash);
   for(const kind of ['records','summaries','specials'])S[kind]=mergeRows(S[kind],report[kind].map(r=>({...r,mailId:id,mailHash:hash})),kind);
-  S.mailKeys.add(id);S.emails=S.mailKeys.size;S.pendingEmails.push({id:crypto.randomUUID(),text});
+  S.mailKeys.add(id);S.emails=S.mailKeys.size;if(!S.pendingEmails.some(entry=>entry.text===text))S.pendingEmails.push({id:crypto.randomUUID(),text});
   updateAll();const saved=await saveState();
-  $('pasteStatus').textContent=saved?`取込完了：${report.summaries.length}件の店舗総合 / ${report.records.length}件の貸玉データを保存しました。`:'取込済みですが端末内保存に失敗しました。バックアップを保存してください。';
+  $('pasteStatus').textContent=saved?`${duplicate?'重複メールの機種・イベント情報を更新しました。 ':''}取込完了：${report.summaries.length}件の店舗総合 / ${report.records.length}件の貸玉データを保存しました。`:'取込済みですが端末内保存に失敗しました。バックアップを保存してください。';
   if(saved)input.value='';
   if(S.connectionMode==='server'&&navigator.onLine)await connectApi();
  }catch(e){$('pasteStatus').textContent=e.message;}

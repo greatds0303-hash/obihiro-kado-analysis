@@ -78,3 +78,25 @@ test('12.5円Sを20スロカテゴリーとして表示する',async({page})=>{
  await page.locator('[data-tab="records"]').click();
  await expect(page.locator('#tableWrap')).toContainText('34');
 });
+test('機種別の全店シェアと勝っている店舗のイベントを表示・再取込で補完',async({page})=>{
+ const report=text.replace('スマスロ【30台】 10名 33%','ジャグラー【30台】 6名20%\n4.5 9時開店 来店ポイント交換会').replace('総合計12名 12%','総合計12名 12%\n客数シェア 30%\nジャグラー【60台】 18名30%\n新台入替');
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
+ await expect(page.locator('#shareChart')).toBeVisible();await expect(page.locator('#eventCompare')).toContainText('新台入替');
+ await page.locator('#chartGroup').selectOption('ジャグラー');
+ await expect(page.locator('#chart')).toHaveAttribute('aria-label',/2店舗.*ジャグラー/);
+ await expect(page.locator('#chartValues')).toContainText('75%');
+ await expect(page.locator('#eventCompare')).toContainText('新台入替');
+ await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();await expect(page.locator('#pasteStatus')).toContainText('重複');
+ await page.reload();await expect(page.locator('#eventCompare')).toContainText('新台入替');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+});
+test('サーバー連携でも重複メールのイベント補完を送信する',async({page})=>{
+ const report=text.replace('総合計12名 12%','総合計12名 12%\n客数シェア 30%\n新台入替');
+ await page.goto('/');await page.locator('details').filter({has:page.locator('#connectionMode')}).locator('summary').click();await page.locator('#connectionMode').selectOption('server');
+ await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();await expect(page.locator('#pendingStatus')).toContainText('本文未送信 0');
+ let refreshed=false;
+ await page.route('**/api/import/email',async route=>{refreshed=true;await route.continue();});
+ await page.route('**/api/data',async route=>{const response=await route.fetch();const data=await response.json();if(!refreshed)for(const row of data.summaries)row.event='';await route.fulfill({response,json:data});});
+ await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();await expect.poll(()=>refreshed).toBeTruthy();
+ await expect(page.locator('#eventCompare')).toContainText('新台入替');
+});

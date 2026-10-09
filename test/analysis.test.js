@@ -17,3 +17,14 @@ test('API反映はローカル独自履歴を保ち、同一報告は置換',()=
  const b={...a,customers:129};const historic={...a,date:'2026-10-01'};
  assert.deepEqual(mergeRows([a,historic],[b],'summaries'),[b,historic]);
 });
+test('機種・種別の店舗シェアは同日時の報告店舗で計算し欠測をゼロにしない',async()=>{
+ const {trendRows}=await import('../public/analysis.js');
+ const rows=[{date:'2026-10-06',time:11,store:'A',group:'ジャグラー',customers:6,machines:30,util:20},{date:'2026-10-06',time:11,store:'B',group:'ジャグラー',customers:18,machines:60,util:30},{date:'2026-10-07',time:11,store:'A',group:'ジャグラー',customers:0,machines:30,util:0}];
+ const result=trendRows({specials:rows}, {group:'ジャグラー',time:11});
+ assert.equal(result[0].share,25);assert.equal(result[1].share,75);assert.equal(result[2].share,null);
+});
+test('シェア欠測店舗がある日時では全店舗を同じ母数で算出する',async()=>{
+ const {trendRows}=await import('../public/analysis.js');
+ const result=trendRows({summaries:[{date:'2026-10-06',time:11,store:'A',customers:25,share:10},{date:'2026-10-06',time:11,store:'B',customers:75,share:null}]});
+ assert.deepEqual(result.map(r=>r.share),[25,75]);
+});

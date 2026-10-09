@@ -35,3 +35,9 @@ test('実Shift_JISのVMGを復号し解析',async()=>{
  const emails=await decodeVmg(readFileSync(new URL('./fixtures/shift-jis.vmg',import.meta.url)));
  assert.equal(parseReport(emails[0].text).summaries[0].customers,129);
 });
+test('機種別客数と店舗のイベントを次の店舗に混ぜず読み取る',()=>{
+ const r=parseReport(body.replace('スマスロ【30台】 10名 33%','ジャグラー 【30台】 6名20%\n北斗転生 【6台】 0名0%\n4.5 9時開店 来店ポイント交換会').replace('総合計12名 12%','総合計12名 12%\n客数シェア 30%\n新台入替'));
+ assert.equal(r.specials.find(x=>x.group==='ジャグラー').customers,6);
+ assert.equal(r.summaries[0].event,'4.5 9時開店 来店ポイント交換会');
+ assert.equal(r.summaries[1].event,'新台入替');
+});
