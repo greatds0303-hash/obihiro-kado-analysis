@@ -163,9 +163,14 @@ export function shareDeclineAlerts(data,{target,time='average'}={}){
  const yesterday=comparisonDate(latest,'1'),dates=[comparisonDate(yesterday,'1'),yesterday,latest],hours=time==='average'?[11,15,19]:[Number(time)],alerts=[],unavailable=[];
  const categories=[...new Set((data.records||[]).filter(r=>r.store===target).map(r=>rateCategory(r.rate)))].map(name=>({kind:'貸玉種別',name,filters:{rate:name}}));
  const groups=[...new Set((data.specials||[]).filter(r=>r.store===target).map(r=>r.group))].map(name=>({kind:'機種群',name,filters:{group:name}}));
+ const recentRates=new Map(),recentGroups=new Map();
+ for(const [rows,index,name] of [[data.records||[],recentRates,r=>rateCategory(r.rate)],[data.specials||[],recentGroups,r=>r.group]])for(const row of rows){
+  if(row.date<dates[0]||row.date>latest)continue;const key=name(row);if(!index.has(key))index.set(key,[]);index.get(key).push(row);
+ }
  let checked=0;
  for(const item of [...categories,...groups]){
-  const samples=hours.map(hour=>trendRows(data,{...item.filters,time:hour,from:dates[0],to:latest}));
+  const source={records:recentRates.get(item.name)||[],specials:recentGroups.get(item.name)||[]};
+  const samples=hours.map(hour=>trendRows(source,{...item.filters,time:hour,from:dates[0],to:latest}));
   const cohorts=dates.map(date=>JSON.stringify(samples.map(rows=>rows.filter(r=>r.date===date&&Number.isFinite(r.customers)).map(r=>r.store).sort())));
   const enough=samples.every(rows=>dates.every(date=>rows.filter(r=>r.date===date&&Number.isFinite(r.customers)).length>=2&&rows.some(r=>r.date===date&&r.store===target&&Number.isFinite(r.share))));
   if(!enough){unavailable.push({...item,reason:'3日分の自店・競合データが不足'});continue;}

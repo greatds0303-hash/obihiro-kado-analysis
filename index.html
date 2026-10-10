@@ -71,8 +71,9 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
     <form id="loginForm" hidden style="margin-top:9px"><label class="small" for="appPassword">アプリのログインパスワード</label><div class="row"><input type="password" id="appPassword" autocomplete="off" required style="max-width:100%;padding:9px"><button class="btn" type="submit">ログイン</button></div><div class="small">docomoのパスワードはこの画面に入力しないでください。</div></form>
   </div>
   <div class="card">
-    <div class="drop" id="drop">VMGファイルをここにドロップ<br><span class="small">またはタップして選択（複数可）</span></div>
-    <input id="file" type="file" accept=".vmg,text/*" multiple hidden>
+    <div class="drop" id="drop">CSV・VMGファイルを取り込む<br><span class="small">タップして選択（複数可・1ファイル20MBまで）</span></div>
+    <input id="file" type="file" accept=".csv,.vmg,text/csv,text/*" multiple hidden>
+    <p class="small">調査CSV（店舗・日付・貸玉・機種・11／15／19時の客数）に対応。UTF-8／Shift_JISを自動判別し、端末内に保存します。同じ日時・店舗・貸玉／機種は更新し、メールのイベント情報は残します。</p>
     <div id="status" class="msg">保存済みデータを確認しています…</div>
   </div>
 
