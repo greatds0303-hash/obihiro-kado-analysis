@@ -294,3 +294,11 @@ test('帯広店の貸玉と機種の連続低下を起動・取込時に通知�
  await page.reload();await expect(page.locator('#shareAlertContent')).toContainText('危険：貸玉種別 20S');
  backup.records=records.filter(r=>!(r.date==='2026-10-07'&&r.time===15&&r.store.startsWith('イーグル')));await page.locator('#restoreFile').setInputFiles({name:'missing.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});await expect(page.locator('#shareAlertContent')).not.toContainText('危険：貸玉種別');await expect(page.locator('#shareAlertContent')).toContainText('判定できないカテゴリー 1件');
 });
+
+test('店舗総合で指定期間のみの平均と各月平均を選択してCSVへ出す',async({page})=>{
+ const summaries=[];for(const [date,customers] of [['2026-08-01',10],['2026-08-02',30],['2026-09-01',50]])for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','競合店'])summaries.push({date,time,store,customers:store==='競合店'?20:customers,util:store==='競合店'?20:customers,storeTotal:100});
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'summary-months.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records:[],specials:[]}))});await page.locator('#summaryScope').selectOption('all');await page.locator('#summaryAggregation').selectOption('month');
+ const rows=page.locator('#tableWrap tbody tr');await expect(rows).toHaveCount(2);await expect(rows.first()).toContainText('2026-08 月平均');await expect(rows.first().locator('td[data-store="イーグル スクエア帯広店"]')).toContainText('20名');await expect(rows.last().locator('td[data-store="イーグル スクエア帯広店"]')).toContainText('50名');
+ const pending=page.waitForEvent('download');await page.locator('#csvBtn').click();const download=await pending;expect(readFileSync(await download.path(),'utf8')).toContain('月平均');
+ await page.locator('#summaryAggregation').selectOption('range');await expect(rows).toHaveCount(0);await expect(page.locator('#tableWrap .period-average td[data-store="イーグル スクエア帯広店"]')).toContainText('30名');await page.locator('#summaryAggregation').selectOption('average');await expect(rows).toHaveCount(3);
+});
