@@ -140,9 +140,12 @@ function renderRanking(){
 $('rankingMetric').addEventListener('change',renderRanking);
 function detailRows(type){
  if(type!=='summary')return filtered(type);
- const average=$('summaryAggregation').value==='average',all=$('summaryScope').value==='all';
- const rows=average?averageTrendRows(S):S.summaries;
- return rows.filter(r=>(!$('from').value||r.date>=$('from').value)&&(!$('to').value||r.date<=$('to').value)&&(all||!$('store').value||r.store===$('store').value)&&(average||!$('time').value||String(r.time)===$('time').value)).map(r=>average?{...r,time:'1日平均',event:[...new Set(S.summaries.filter(x=>x.date===r.date&&x.store===r.store).map(x=>x.event).filter(Boolean))].join(' / ')}:r).sort((a,b)=>a.date.localeCompare(b.date)||a.store.localeCompare(b.store,'ja')||String(a.time).localeCompare(String(b.time)));
+ const mode=$('summaryAggregation').value,average=mode!=='time',all=$('summaryScope').value==='all';
+ const baseRows=average?averageTrendRows(S):S.summaries;
+ const dated=baseRows.filter(r=>(!$('from').value||r.date>=$('from').value)&&(!$('to').value||r.date<=$('to').value)&&(average||!$('time').value||String(r.time)===$('time').value));
+ const rows=mode==='range'?selectedRange(baseRows):mode==='month'?periodTrendRows(dated,'month'):dated;
+ return rows.filter(r=>all||!$('store').value||r.store===$('store').value).map(r=>average?{...r,time:mode==='range'?'期間平均':mode==='month'?'月平均':'1日平均',event:[...new Set(S.summaries.filter(x=>x.store===r.store&&(r.coverageDates?r.coverageDates.includes(x.date):x.date===r.date)).map(x=>x.event).filter(Boolean))].join(' / ')}:r).sort((a,b)=>a.date.localeCompare(b.date)||a.store.localeCompare(b.store,'ja')||String(a.time).localeCompare(String(b.time)));
+
 }
 function renderTable(){
   $('summaryControls').hidden=S.tab!=='summary';
@@ -150,10 +153,10 @@ function renderTable(){
   if(S.tab!=='summary'){$('tableWrap').hidden=true;return;}
   $('tableWrap').hidden=false;
   const data=detailRows('summary'),stores=uniq(data.map(r=>r.store)),keys=uniq(data.map(r=>JSON.stringify([r.date,r.time])));
-  const source=$('summaryAggregation').value==='average'||!$('time').value?averageTrendRows(S):trendRows(S,{time:Number($('time').value)});
+  const source=$('summaryAggregation').value!=='time'||!$('time').value?averageTrendRows(S):trendRows(S,{time:Number($('time').value)});
   const totals=selectedRange(source),val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
   const metrics=r=>r?`客数 <b>${val(r.customers,'名')}</b><br>シェア ${val(r.share,'%')}<br>稼働率 ${val(r.util,'%')}<br>総台数 ${val(r.storeTotal,'台')}`:'未取得';
-  $('tableWrap').innerHTML='<table class="store-matrix"><thead><tr><th>日付・集計</th>'+stores.map(store=>`<th>${esc(store)}</th>`).join('')+'</tr><tr class="period-average"><td><b>指定期間の平均</b><br>'+esc($('from').value)+'〜'+esc($('to').value)+'</td>'+stores.map(store=>`<td data-store="${esc(store)}">${metrics(totals.find(r=>r.store===store))}</td>`).join('')+'</tr></thead><tbody>'+keys.slice(0,1000).map(key=>{const [date,time]=JSON.parse(key);return `<tr><td>${date}<br>${time==='1日平均'?'1日平均（11・15・19時）':time+'時'}</td>`+stores.map(store=>`<td data-store="${esc(store)}">${metrics(data.find(r=>r.date===date&&r.time===time&&r.store===store))}</td>`).join('')+'</tr>';}).join('')+'</tbody></table>';
+  $('tableWrap').innerHTML='<table class="store-matrix"><thead><tr><th>日付・集計</th>'+stores.map(store=>`<th>${esc(store)}</th>`).join('')+'</tr><tr class="period-average"><td><b>指定期間の平均</b><br>'+esc($('from').value)+'〜'+esc($('to').value)+'</td>'+stores.map(store=>`<td data-store="${esc(store)}">${metrics(totals.find(r=>r.store===store))}</td>`).join('')+'</tr></thead><tbody>'+($('summaryAggregation').value==='range'?[]:keys.slice(0,1000)).map(key=>{const [date,time]=JSON.parse(key);return `<tr><td>${date}<br>${time==='月平均'?date.slice(0,7)+' 月平均（11・15・19時）':time==='1日平均'?'1日平均（11・15・19時）':time+'時'}</td>`+stores.map(store=>`<td data-store="${esc(store)}">${metrics(data.find(r=>r.date===date&&r.time===time&&r.store===store))}</td>`).join('')+'</tr>';}).join('')+'</tbody></table>';
 
 }
 let detailAutoRange=true,detailSelectedDate='';
