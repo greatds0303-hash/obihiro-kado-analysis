@@ -357,3 +357,16 @@ test('市場客数の月別前月比を増加は黒・減少は赤で表示し�
  await page.locator('#from').fill('2026-08-01');await page.locator('#to').fill('2026-08-01');await expect(total).toContainText('前月データ未取得');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
+
+test('CSVをスマホで取り込み機種と貸玉・市場客数を表示し再取込でも重複しない',async({page,context})=>{
+ const head='対象店舗名,調査日,種別,貸玉(円),機種コード,機種名,設置台数,11:00(客数),15:00(客数),19:00(客数)';
+ const csv=head+'\nイーグル  スクエア帯広店,2026/08/01,パチンコ,2.500,1,機種A,5,1,3,2\nイーグル  スクエア帯広店,2026/08/01,スロット,12.500,2,機種B,10,4,5,6\n競合店,2026/08/01,パチンコ,4.000,3,機種A,10,0,0,0';
+ const upload=()=>page.locator('#file').setInputFiles({name:'survey.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});
+ await page.goto('http://127.0.0.1:3102/');await upload();await expect(page.locator('#status')).toContainText('CSV');await expect(page.locator('#kStores')).toHaveText('2');await expect(page.locator('#kLatest')).toHaveText('7');await expect(page.locator('#kEmails')).toHaveText('0');await expect(page.locator('#kRecords')).toHaveText('9');
+ await expect(page.locator('#marketSize tr[data-category="全種別"]')).toContainText('7名');await expect(page.locator('#rateCompare')).toContainText('2.5円P');await expect(page.locator('#rate')).toContainText('20S');
+ await upload();await expect(page.locator('#kRecords')).toHaveText('9');
+ await page.locator('[data-tab="specials"]').click();await page.locator('#detailCategory').selectOption('機種A');await expect(page.locator('#detailCustomers')).toHaveAttribute('aria-label',/機種A.*2店舗/);
+ await page.evaluate(()=>navigator.serviceWorker.ready);await page.reload();await context.setOffline(true);await page.reload();await expect(page.locator('#kLatest')).toHaveText('7');
+ await page.locator('#file').setInputFiles({name:'broken.csv',mimeType:'text/csv',buffer:Buffer.from(csv+'\nイーグル スクエア帯広店,2026/08/02,パチンコ,2.500,1,機種A,5,abc,3,2')});await expect(page.locator('#status')).toContainText('失敗');await expect(page.locator('#kRecords')).toHaveText('9');
+ await context.setOffline(false);
+});

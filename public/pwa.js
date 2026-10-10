@@ -1,4 +1,5 @@
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
+import {decodeSurveyCsv,mergeCsvReport} from './csv-import.js';
 import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts,marketSizeComparison} from './analysis.js';
 import {drawTrend} from './trend-chart.js';
 import {request} from './api-client.js';
@@ -320,18 +321,25 @@ function exportCsv(){const type=S.tab,rows=detailRows(type);if(!rows.length){ale
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
 async function loadFiles(files){
- if(!files.length)return;await initialized;let added=0,total=0,duplicates=0,errors=[];$('status').textContent='読み込み中…';
+ if(!files.length)return;await initialized;let added=0,total=0,duplicates=0,errors=[],csvNotes=[];$('status').textContent='読み込み中…';
+ await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
  for(const f of files){
-  try{if(f.size>20*1024*1024)throw Error('20MBを超えています');const r=await decodeVmg(await f.arrayBuffer());added+=r.emails;duplicates+=r.duplicates;total+=r.totalChunks;
+  try{if(f.size>20*1024*1024)throw Error('20MBを超えています');
+   if(/\.csv$/i.test(f.name)){
+    const report=decodeSurveyCsv(await f.arrayBuffer()),merged=mergeCsvReport(S,report);
+    for(const kind of ['summaries','records','specials'])S[kind]=merged[kind];
+    csvNotes.push(`CSV ${report.sourceRows.toLocaleString()}行 / ${report.dates.length}日 / ${report.stores.length}店舗 / ${report.encoding}${report.missingCounts?' / 客数空欄 '+report.missingCounts+'件（未取得）':''}`);continue;
+   }
+   const r=await decodeVmg(await f.arrayBuffer());added+=r.emails;duplicates+=r.duplicates;total+=r.totalChunks;
    const id=crypto.randomUUID();S.pendingVMG.push({id,raw:r.raw});
   }catch(e){errors.push(`${f.name}: ${e.message}`);}
  }
- updateAll();await saveState();$('status').textContent=`読み込み完了：${files.length}ファイル / 新規メール ${added}通 / 重複 ${duplicates}通 / VMG内 ${total}通${errors.length?' / 失敗: '+errors.join(', '):''}`;
+ updateAll();await saveState();$('status').textContent=`読み込み完了：${files.length}ファイル${csvNotes.length?' / '+csvNotes.join(' / '):''} / 新規メール ${added}通 / 重複 ${duplicates}通 / VMG内 ${total}通${errors.length?' / 失敗: '+errors.join(', '):''}`;
  if(navigator.onLine&&S.connectionMode==='server')await connectApi();
 }
 function backup(){const data={version:2,exportedAt:new Date().toISOString(),records:S.records,summaries:S.summaries,specials:S.specials,mailKeys:[...S.mailKeys],emails:S.emails,pendingVMG:S.pendingVMG,pendingEmails:S.pendingEmails,connectionMode:S.connectionMode,syncSnapshot:S.syncSnapshot};download(new Blob([JSON.stringify(data)],{type:'application/json'}),`帯広店_稼働分析_バックアップ_${new Date().toISOString().slice(0,10)}.json`);}
 async function restore(file){
- try{await initialized;if(file.size>20*1024*1024)throw Error();const d=JSON.parse(await file.text());if(!Array.isArray(d.summaries)||!Array.isArray(d.records)||!Array.isArray(d.specials))throw Error();useSaved(d);await saveState();updateAll();$('status').textContent='バックアップを復元しました。';}
+ try{await initialized;if(file.size>100*1024*1024)throw Error();const d=JSON.parse(await file.text());if(!Array.isArray(d.summaries)||!Array.isArray(d.records)||!Array.isArray(d.specials))throw Error();useSaved(d);await saveState();updateAll();$('status').textContent='バックアップを復元しました。';}
  catch{alert('復元に失敗しました。バックアップJSONを確認してください。');}
 }
 function refreshNetwork(){
@@ -386,7 +394,7 @@ $('loginForm').onsubmit=async event=>{
  event.preventDefault();const input=$('appPassword');try{await request('/api/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:input.value})});input.value='';$('syncError').textContent='';$('loginForm').hidden=true;await connectApi();}catch(e){input.value='';handleApiError(e);}
 };
 window.addEventListener('online',async()=>{await initialized;refreshNetwork();$('syncError').textContent='';await connectApi();});window.addEventListener('offline',refreshNetwork);
-const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();file.onchange=e=>loadFiles([...e.target.files]);['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
+const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();file.onchange=async e=>{await loadFiles([...e.target.files]);file.value='';};['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
 ['from','to','time','store','rate','base','compareDate','compareEnd'].forEach(id=>bindChange($(id),()=>{if(['from','to'].includes(id))autoRange=false;if(id==='time'){selectTime($('time').value);return;}if(id==='compareDate')$('base').value=$('compareEnd').value?'range':'custom';if(id==='compareEnd')$('base').value='range';if(id==='base'&&!['custom','range'].includes($('base').value)){$('compareDate').value='';$('compareEnd').value='';}renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;renderTable()});
 ['summaryAggregation','summaryHour','summaryScope'].forEach(id=>bindChange($(id),renderTable));
