@@ -162,9 +162,14 @@ function renderDetailCharts(){
  $('detailLegend').innerHTML=stores.map(store=>`<span style="color:${colors.get(store)};padding:5px">● ${esc(store)}</span>`).join('');
  const val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
  const diff=(v,unit)=>v==null?'比較なし':`<span style="color:${v<0?'#c13d3d':'#172033'}">${v>0?'+':''}${v}${unit}</span>`;
- $('detailChartValues').innerHTML='<table><thead><tr><th>日付・期間</th><th>店舗</th><th>平均客数</th><th>シェア</th><th>稼働率</th><th>比較期間</th><th>客数差</th><th>シェア差</th></tr></thead><tbody>'+rows.filter(r=>stores.includes(r.store)).map(r=>{
-  const prior=comparisonDate(r.date,period==='month'?'month':period==='week'?'7':'1'),prev=history.find(p=>p.date===prior&&p.store===r.store),d=compareRows(r,prev);
-  return `<tr><td>${r.date}${r.periodEnd?'〜'+r.periodEnd:''}</td><td>${esc(r.store)}</td><td>${val(r.customers)}</td><td>${val(r.share,'%')}</td><td>${val(r.util,'%')}</td><td>${prior||'なし'}</td><td>${diff(d.customers,'名')}</td><td>${diff(d.share,'pt')}</td></tr>`;
+ const rangeStart=from||uniq(raw.map(r=>r.date))[0],rangeEnd=to||uniq(raw.map(r=>r.date)).at(-1),totals=rangeTrendRows(raw,rangeStart,rangeEnd);
+ const metrics=r=>r?`平均客数 <b>${val(r.customers,'名')}</b><br>シェア ${val(r.share,'%')}<br>稼働率 ${val(r.util,'%')}`:'未取得';
+ $('detailChartValues').innerHTML='<table class="store-matrix"><thead><tr><th>日付・期間</th>'+stores.map(store=>`<th>${esc(store)}</th>`).join('')+'</tr><tr class="period-average"><td><b>指定期間の平均</b><br>'+esc(rangeStart||'')+'〜'+esc(rangeEnd||'')+'</td>'+stores.map(store=>{const row=totals.find(r=>r.store===store);return `<td data-store="${esc(store)}">${metrics(row)}<br>取得 ${row?.days||0}日</td>`;}).join('')+'</tr></thead><tbody>'+dates.map(date=>{
+  const sample=rows.find(r=>r.date===date),prior=comparisonDate(date,period==='month'?'month':period==='week'?'7':'1');
+  return `<tr><td>${date}${sample?.periodEnd?'〜'+sample.periodEnd:''}<br>比較 ${prior||'なし'}</td>`+stores.map(store=>{
+   const row=rows.find(r=>r.date===date&&r.store===store),prev=history.find(r=>r.date===prior&&r.store===store),d=compareRows(row,prev);
+   return `<td data-store="${esc(store)}">${metrics(row)}<br>客数差 ${diff(d.customers,'名')}<br>シェア差 ${diff(d.share,'pt')}</td>`;
+  }).join('')+'</tr>';
  }).join('')+'</tbody></table>';
 
  for(const [id,key,unit] of [['detailCustomers','customers','名'],['detailShare','share','%'],['detailUtil','util','%']]){
