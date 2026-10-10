@@ -111,3 +111,24 @@ export function rangeTrendRows(rows,from,to){
   return {...group[0],date:from,periodEnd:to,period:'range',customers:mean('customers'),util:mean('util'),share:valid.length&&marketSum>0?Math.round(sum/marketSum*1000)/10:null,days:valid.length,reportedDays:group.length,coverageDates:valid.map(r=>r.date).sort(),periodDays:days.size,marketTotal:days.size?Math.round(marketSum/days.size*10)/10:null};
  });
 }
+
+export function shareDeclineAlerts(data,{target,time='average'}={}){
+ const latest=[...(data.summaries||[]),...(data.records||[]),...(data.specials||[])].map(r=>r.date).filter(date=>comparisonDate(date,'custom',date)).sort().at(-1);
+ if(!latest)return {latest:null,dates:[],alerts:[],unavailable:[],checked:0};
+ const yesterday=comparisonDate(latest,'1'),dates=[comparisonDate(yesterday,'1'),yesterday,latest],hours=time==='average'?[11,15,19]:[Number(time)],alerts=[],unavailable=[];
+ const categories=[...new Set((data.records||[]).filter(r=>r.store===target).map(r=>rateCategory(r.rate)))].map(name=>({kind:'貸玉種別',name,filters:{rate:name}}));
+ const groups=[...new Set((data.specials||[]).filter(r=>r.store===target).map(r=>r.group))].map(name=>({kind:'機種群',name,filters:{group:name}}));
+ let checked=0;
+ for(const item of [...categories,...groups]){
+  const samples=hours.map(hour=>trendRows(data,{...item.filters,time:hour,from:dates[0],to:latest}));
+  const cohorts=dates.map(date=>JSON.stringify(samples.map(rows=>rows.filter(r=>r.date===date&&Number.isFinite(r.customers)).map(r=>r.store).sort())));
+  const enough=samples.every(rows=>dates.every(date=>rows.filter(r=>r.date===date&&Number.isFinite(r.customers)).length>=2&&rows.some(r=>r.date===date&&r.store===target&&Number.isFinite(r.share))));
+  if(!enough){unavailable.push({...item,reason:'3日分の自店・競合データが不足'});continue;}
+  if(!cohorts.every(value=>value===cohorts[0])){unavailable.push({...item,reason:'日ごとに報告店舗が異なる'});continue;}
+  const shares=dates.map(date=>samples.reduce((sum,rows)=>sum+rows.find(r=>r.date===date&&r.store===target).share,0)/hours.length).map(v=>Math.round(v*10)/10);
+  checked++;
+  if(shares[0]>shares[1]&&shares[1]>shares[2])alerts.push({kind:item.kind,name:item.name,dates,shares,drop:Math.round((shares[0]-shares[2])*10)/10});
+ }
+ alerts.sort((a,b)=>b.drop-a.drop||a.name.localeCompare(b.name,'ja'));
+ return {latest,dates,alerts,unavailable,checked};
+}
