@@ -50,13 +50,33 @@ export function marketSizeRows(data,{from='',to='',time='average'}={}){
    if(!times.has(r.time))times.set(r.time,[]);times.get(r.time).push(r);
   }
   const valid=[];
-  for(const times of dates.values()){
+  for(const [date,times] of dates){
    const samples=hours.map(hour=>times.get(hour)||[]),cohorts=samples.map(rows=>JSON.stringify([...new Set(rows.map(r=>r.store))].sort()));
    if(!samples.every(rows=>rows.length&&rows.every(r=>Number.isFinite(r.customers)))||!cohorts.every(c=>c===cohorts[0]))continue;
-   valid.push({customers:samples.reduce((sum,rows)=>sum+rows.reduce((n,r)=>n+r.customers,0),0)/hours.length,stores:new Set(samples[0].map(r=>r.store)).size});
+   valid.push({date,customers:samples.reduce((sum,rows)=>sum+rows.reduce((n,r)=>n+r.customers,0),0)/hours.length,stores:[...new Set(samples[0].map(r=>r.store))].sort()});
   }
-  return {category,customers:valid.length?Math.round(valid.reduce((n,r)=>n+r.customers,0)/valid.length*10)/10:null,days:valid.length,unavailableDays:dates.size-valid.length,storesMin:valid.length?Math.min(...valid.map(r=>r.stores)):0,storesMax:valid.length?Math.max(...valid.map(r=>r.stores)):0};
+  const meanCustomers=valid.length?valid.reduce((n,r)=>n+r.customers,0)/valid.length:null;
+  return {category,meanCustomers,customers:meanCustomers==null?null:Math.round(meanCustomers*10)/10,days:valid.length,unavailableDays:dates.size-valid.length,storesMin:valid.length?Math.min(...valid.map(r=>r.stores.length)):0,storesMax:valid.length?Math.max(...valid.map(r=>r.stores.length)):0,coverage:valid.map(({date,stores})=>({date,stores})).sort((a,b)=>a.date.localeCompare(b.date))};
  });
+}
+export function marketSizeComparison(data,filters={}){
+ const dates=[...(data.summaries||[]),...(data.records||[])].map(r=>r.date).sort(),from=filters.from||dates[0],to=filters.to||dates.at(-1);
+ const shift=date=>{
+  if(!comparisonDate(date,'custom',date))return null;
+  const d=new Date(date+'T00:00:00Z'),day=d.getUTCDate();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-1);
+  const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(Math.min(day,last));return d.toISOString().slice(0,10);
+ };
+ const fullMonth=(start,end)=>start&&start.endsWith('-01')&&end===periodBounds(start,'month')?.end;
+ const previousFrom=shift(from),previousTo=fullMonth(from,to)?periodBounds(previousFrom,'month').end:shift(to);
+ const rows=marketSizeRows(data,{...filters,from,to}),previous=new Map((previousFrom&&previousTo?marketSizeRows(data,{...filters,from:previousFrom,to:previousTo}):[]).map(r=>[r.category,r]));
+ const signature=(row,start)=>JSON.stringify(row.coverage.map(r=>[Math.round((Date.parse(r.date)-Date.parse(start))/86400000),r.stores]));
+ const completeMonth=(row,start,end)=>fullMonth(start,end)&&row.days===Number(end.slice(-2));
+ const stableStores=row=>{const names=row.coverage.map(r=>JSON.stringify(r.stores));return names.length&&names.every(n=>n===names[0])?names[0]:null;};
+ return {from,to,previousFrom,previousTo,rows:rows.map(row=>{
+  const prior=previous.get(row.category),hasData=Number.isFinite(row.customers)&&Number.isFinite(prior?.customers);
+  const comparable=hasData&&(signature(row,from)===signature(prior,previousFrom)||(completeMonth(row,from,to)&&completeMonth(prior,previousFrom,previousTo)&&stableStores(row)&&stableStores(row)===stableStores(prior)));
+  return {...row,previousCustomers:prior?.customers??null,previousDays:prior?.days||0,delta:comparable?Math.round((row.meanCustomers-prior.meanCustomers)*10)/10:null,changePercent:comparable&&prior.meanCustomers>0?Math.round((row.meanCustomers/prior.meanCustomers-1)*1000)/10:null,reason:!Number.isFinite(row.customers)?'当期データ未取得':!Number.isFinite(prior?.customers)?'前月データ未取得':!comparable?'報告店舗・取得日が異なるため比較不可':''};
+ })};
 }
 export function trendRows(data,{group='',rate='',time=11,from='',to=''}={}){
  const source=(group?data.specials:rate?data.records:data.summaries)||[];
