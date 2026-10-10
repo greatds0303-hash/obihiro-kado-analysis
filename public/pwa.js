@@ -141,25 +141,31 @@ $('rankingMetric').addEventListener('change',renderRanking);
 function detailRows(type){
  if(type!=='summary')return filtered(type);
  const mode=$('summaryAggregation').value,average=mode!=='time',all=$('summaryScope').value==='all';
- const baseRows=average?averageTrendRows(S):S.summaries;
- const dated=baseRows.filter(r=>(!$('from').value||r.date>=$('from').value)&&(!$('to').value||r.date<=$('to').value)&&(average||!$('time').value||String(r.time)===$('time').value));
+ const baseRows=average?averageTrendRows(S):trendRows(S,{time:Number($('summaryHour').value)});
+ const dated=baseRows.filter(r=>(!$('from').value||r.date>=$('from').value)&&(!$('to').value||r.date<=$('to').value)&&(average||String(r.time)===$('summaryHour').value));
  const rows=mode==='range'?selectedRange(baseRows):mode==='month'?periodTrendRows(dated,'month'):dated;
  return rows.filter(r=>all||!$('store').value||r.store===$('store').value).map(r=>average?{...r,time:mode==='range'?'期間平均':mode==='month'?'月平均':'1日平均',event:[...new Set(S.summaries.filter(x=>x.store===r.store&&(r.coverageDates?r.coverageDates.includes(x.date):x.date===r.date)).map(x=>x.event).filter(Boolean))].join(' / ')}:r).sort((a,b)=>a.date.localeCompare(b.date)||a.store.localeCompare(b.store,'ja')||String(a.time).localeCompare(String(b.time)));
 
 }
+function monthDelta(current,previous,date){
+ const delta=compareRows(current,previous),value=(v,unit)=>v==null?'比較なし':`<span style="color:${v<0?'#c13d3d':'#172033'}">${v>0?'+':''}${v}${unit}</span>`;
+ return `<br>前月 ${date?date.slice(0,7):'なし'}<br>客数差 ${value(delta.customers,'名')}<br>シェア差 ${value(delta.share,'pt')}<br>稼働率差 ${value(delta.util,'pt')}`;
+}
 function renderTable(){
   $('summaryControls').hidden=S.tab!=='summary';
+  $('summaryHourField').hidden=$('summaryAggregation').value!=='time';
   renderDetailCharts();
   if(S.tab!=='summary'){$('tableWrap').hidden=true;return;}
   $('tableWrap').hidden=false;
   const data=detailRows('summary'),stores=uniq(data.map(r=>r.store)),keys=uniq(data.map(r=>JSON.stringify([r.date,r.time])));
-  const source=$('summaryAggregation').value!=='time'||!$('time').value?averageTrendRows(S):trendRows(S,{time:Number($('time').value)});
+  const source=$('summaryAggregation').value!=='time'?averageTrendRows(S):trendRows(S,{time:Number($('summaryHour').value)});
+  const monthlyHistory=$('summaryAggregation').value==='month'?periodTrendRows(averageTrendRows(S),'month'):[];
   const totals=selectedRange(source),val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
   const metrics=r=>r?`客数 <b>${val(r.customers,'名')}</b><br>シェア ${val(r.share,'%')}<br>稼働率 ${val(r.util,'%')}<br>総台数 ${val(r.storeTotal,'台')}`:'未取得';
   const summaryRow=$('summaryAggregation').value!=='range'?'':'<tr class="period-average"><td><b>指定期間の平均</b><br>'+esc($('from').value)+'〜'+esc($('to').value)+'</td>'+stores.map(store=>`<td data-store="${esc(store)}">${metrics(totals.find(r=>r.store===store))}</td>`).join('')+'</tr>';
   $('tableWrap').innerHTML='<table class="store-matrix"><thead><tr><th>日付・集計</th>'+stores.map(store=>`<th>${esc(store)}</th>`).join('')+'</tr>'+summaryRow+'</thead><tbody>'+($('summaryAggregation').value==='range'?[]:keys.slice(0,1000)).map(key=>{
-   const [date,time]=JSON.parse(key),label=time==='月平均'?date.slice(0,7)+' 月平均（11・15・19時）':date+'<br>'+(time==='1日平均'?'1日平均（11・15・19時）':time+'時');
-   return `<tr><td>${label}</td>`+stores.map(store=>`<td data-store="${esc(store)}">${metrics(data.find(r=>r.date===date&&r.time===time&&r.store===store))}</td>`).join('')+'</tr>';
+   const [date,time]=JSON.parse(key),prior=time==='月平均'?comparisonDate(date,'month'):null,label=time==='月平均'?date.slice(0,7)+' 月平均（11・15・19時）':date+'<br>'+(time==='1日平均'?'1日平均（11・15・19時）':time+'時');
+   return `<tr><td>${label}</td>`+stores.map(store=>`<td data-store="${esc(store)}">${metrics(data.find(r=>r.date===date&&r.time===time&&r.store===store))}${time==='月平均'?monthDelta(data.find(r=>r.date===date&&r.store===store),monthlyHistory.find(r=>r.date===prior&&r.store===store),prior):''}</td>`).join('')+'</tr>';
   }).join('')+'</tbody></table>';
 
 
@@ -169,7 +175,7 @@ const detailCategories={records:'',specials:''};
 function renderDetailCharts(){
  const type=S.tab,active=type==='records'||type==='specials';$('detailCharts').hidden=!active;if(!active)return;
  const categories=uniq(type==='records'?S.records.map(r=>rateCategory(r.rate)):S.specials.map(r=>r.group));
- $('detailCategory').innerHTML=categories.map(v=>`<option>${esc(v)}</option>`).join('');
+ if(JSON.stringify([...$('detailCategory').options].map(option=>option.value))!==JSON.stringify(categories))$('detailCategory').innerHTML=categories.map(v=>`<option>${esc(v)}</option>`).join('');
  $('detailCategory').value=categories.includes(detailCategories[type])?detailCategories[type]:categories[0]||'';detailCategories[type]=$('detailCategory').value;
  if(detailAutoRange){$('detailFrom').value=$('from').value;$('detailTo').value=$('to').value;}
  const category=$('detailCategory').value,from=$('detailFrom').value,to=$('detailTo').value,period=$('detailPeriod').value;
@@ -354,7 +360,7 @@ window.addEventListener('online',async()=>{await initialized;refreshNetwork();$(
 const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();file.onchange=e=>loadFiles([...e.target.files]);['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
 ['from','to','time','store','rate','base','compareDate','compareEnd'].forEach(id=>$(id).addEventListener('change',()=>{if(['from','to'].includes(id))autoRange=false;if(id==='time'){selectTime($('time').value);return;}if(id==='compareDate')$('base').value=$('compareEnd').value?'range':'custom';if(id==='compareEnd')$('base').value='range';if(id==='base'&&!['custom','range'].includes($('base').value)){$('compareDate').value='';$('compareEnd').value='';}renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;renderTable()});
-['summaryAggregation','summaryScope'].forEach(id=>$(id).addEventListener('change',renderTable));
+['summaryAggregation','summaryHour','summaryScope'].forEach(id=>$(id).addEventListener('change',renderTable));
 $('csvBtn').onclick=exportCsv;$('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=e=>e.target.files[0]&&restore(e.target.files[0]);$('clearBtn').onclick=async()=>{if(confirm('この端末のデータと未送信VMGをクリアしますか？サーバーのデータは削除されません。')){S.records=[];S.summaries=[];S.specials=[];S.mailKeys.clear();S.emails=0;S.pendingVMG=[];S.pendingEmails=[];autoRange=true;$('from').value='';$('to').value='';await saveState();updateAll();$('status').textContent='データをクリアしました。'}};
 document.querySelectorAll('.bottomnav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.bottomnav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById(b.dataset.target).scrollIntoView({behavior:'smooth',block:'start'})});
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBanner').classList.add('show')});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBanner').classList.remove('show')}};$('installClose').onclick=()=>$('installBanner').classList.remove('show');
