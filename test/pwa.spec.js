@@ -105,7 +105,7 @@ test('スマホの拡大グラフ・日付選択と客数からのシェア計�
  await page.goto('http://127.0.0.1:3102/');await page.locator('#latestTime').selectOption('11');await page.locator('#summaryAggregation').selectOption('time');await page.locator('#summaryScope').selectOption('selected');await page.locator('#restoreFile').setInputFiles({name:'chart.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries:rows,records:[],specials:[],mailKeys:['visual']}))});
  await expect(page.locator('#chartValues')).toContainText('25%');await expect(page.locator('#chartValues')).toContainText('75%');
  await page.locator('#chartZoom').selectOption('wide');
- expect(await page.locator('#shareChart').evaluate(el=>el.clientWidth>el.parentElement.clientWidth)).toBeTruthy();
+ await expect.poll(()=>page.locator('#shareChart').evaluate(el=>el.clientWidth>el.parentElement.clientWidth)).toBeTruthy();
  await page.locator('#marketDate').selectOption('2026-09-01');await expect(page.locator('#chartValues')).toContainText('2026-09-01');await expect(page.locator('#eventCompare')).toContainText('新台入替');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
  await page.locator('#chartZoom').selectOption('fit');await page.locator('#shareChart').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/obihiro-chart-mobile.png'});
@@ -130,7 +130,7 @@ test('スマホの先頭で市場客数・自店シェア・順位・競合イ�
  const report=text.replace('総合計12名 12%','総合計212名 21%\n新台入替');
  await page.goto('http://127.0.0.1:3102/');await page.locator('#latestTime').selectOption('11');await page.locator('#summaryAggregation').selectOption('time');await page.locator('#summaryScope').selectOption('selected');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
  await expect(page.locator('#marketOverview')).toContainText('341名');await expect(page.locator('#marketOverview')).toContainText('2位');await expect(page.locator('#marketOverview')).toContainText('新台入替');
- expect(await page.locator('.wrap > .card').first().getAttribute('id')).toBe('shareAlerts');
+ expect(await page.locator('.wrap > .card:visible').first().getAttribute('id')).toBe('shareAlerts');
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'/tmp/obihiro-market-overview.png'});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
@@ -315,4 +315,10 @@ test('選択変更でカテゴリー欄を作り直さず選択内容を維持�
  await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();await page.locator('[data-tab="specials"]').click();await page.evaluate(()=>{window.__option=document.querySelector('#detailCategory option');});
  for(const period of ['month','day','week','day'])await page.locator('#detailPeriod').selectOption(period);
  expect(await page.evaluate(()=>window.__option===document.querySelector('#detailCategory option'))).toBeTruthy();await expect(page.locator('#detailCategory')).toHaveValue('スマスロ');
+});
+
+test('選択後にフォーカスを外してから更新しアプリ更新でも勝手に再読込しない',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();await page.evaluate(()=>navigator.serviceWorker.ready);await page.reload();
+ await page.locator('#summaryAggregation').focus();await page.locator('#summaryAggregation').selectOption('month');await expect.poll(()=>page.evaluate(()=>document.activeElement?.id)).not.toBe('summaryAggregation');await expect(page.locator('#summaryAggregation')).toHaveValue('month');expect(await page.evaluate(()=>document.querySelector('#summaryAggregation').dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true})))).toBeFalsy();
+ await page.evaluate(()=>{window.__retained=true;navigator.serviceWorker.dispatchEvent(new Event('controllerchange'));});await expect(page.locator('#appUpdate')).toBeVisible();expect(await page.evaluate(()=>window.__retained)).toBeTruthy();await expect(page.locator('#summaryAggregation')).toHaveValue('month');
 });

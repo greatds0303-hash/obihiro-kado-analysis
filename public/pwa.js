@@ -6,6 +6,19 @@ import {request} from './api-client.js';
 const S={records:[],summaries:[],specials:[],mailKeys:new Set(),emails:0,pendingVMG:[],pendingEmails:[],connectionMode:'manual',syncSnapshot:null,tab:'summary'};
 const TARGET='イーグル スクエア帯広店';
 const $=id=>document.getElementById(id);
+const pickerClosedAt=new WeakMap();
+document.addEventListener('click',event=>{
+ const control=event.target;
+ if(control instanceof HTMLSelectElement&&Date.now()-(pickerClosedAt.get(control)||0)<300){event.preventDefault();event.stopImmediatePropagation();control.blur();}
+},true);
+function bindChange(element,handler){
+ let pending;
+ element.addEventListener('change',event=>{
+  if(event.target instanceof HTMLSelectElement){
+   const control=event.target,value=control.value;pickerClosedAt.set(control,Date.now());control.blur();clearTimeout(pending);pending=setTimeout(()=>{if(control.isConnected)control.value=value;handler(event);},80);
+  }else handler(event);
+ });
+}
 const DB_NAME='obihiro-kado-db', STORE='state';
 
 function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{r.result.createObjectStore(STORE)};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -73,7 +86,7 @@ function renderShareAlerts(){
  const cards=result.alerts.map(item=>`<div style="margin-top:10px;padding:12px;border:2px solid #c13d3d;border-radius:10px;background:#fff3f2;color:#9c2020"><b>危険：${esc(item.kind)} ${esc(item.name)}</b><br>3日間で連続低下 / −${item.drop}pt<br>${item.dates.map((date,i)=>`${date}：<b>${item.shares[i]}%</b>`).join(' → ')}</div>`).join('');
  $('shareAlertContent').innerHTML=`<p class="small">${result.dates[0]}〜${result.latest} / 判定できたカテゴリー ${result.checked}件</p>`+(cards||`<p>${result.checked?'判定できたカテゴリーに3日間の連続低下はありません。':'判定に必要な3日分のデータがありません。'}</p>`)+(result.unavailable.length?`<details style="margin-top:10px"><summary>判定できないカテゴリー ${result.unavailable.length}件</summary>${result.unavailable.map(item=>`<p class="small">${esc(item.kind)} ${esc(item.name)}：${esc(item.reason)}</p>`).join('')}</details>`:'');
 }
-$('alertTime').addEventListener('change',renderShareAlerts);
+bindChange($('alertTime'),renderShareAlerts);
 function renderLatestCustomerKpi(){
  const store=$('store').value||TARGET,mode=$('latestTime').value;
  const source=mode==='average'?averageTrendRows(S):S.summaries.filter(row=>row.time===Number(mode));
@@ -85,8 +98,8 @@ function selectTime(time){
  $('time').value=time;$('latestTime').value=time||'average';$('rateCompareTime').value=time;$('chartAggregation').value=time?'time':'average';
  renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();
 }
-$('latestTime').addEventListener('change',()=>selectTime($('latestTime').value==='average'?'':$('latestTime').value));
-$('rateCompareTime').addEventListener('change',()=>selectTime($('rateCompareTime').value));
+bindChange($('latestTime'),()=>selectTime($('latestTime').value==='average'?'':$('latestTime').value));
+bindChange($('rateCompareTime'),()=>selectTime($('rateCompareTime').value));
 function rangeMode(){return $('base').value==='range';}
 function selectedRange(rows,comparison=false){return rangeTrendRows(rows,$(comparison?'compareDate':'from').value,$(comparison?'compareEnd':'to').value);}
 function renderLatestCompare(){
@@ -137,7 +150,7 @@ function renderRanking(){
   return `<tr><td>${Number.isFinite(r[key])?rank:'-'}</td><td>${esc(r.store)}</td><td><b>${value(r.customers)}</b></td><td>${value(r.util,'%')}</td><td>${value(r.share,'%')}</td></tr>`;
  }).join('')+'</tbody></table>';
 }
-$('rankingMetric').addEventListener('change',renderRanking);
+bindChange($('rankingMetric'),renderRanking);
 function detailRows(type){
  if(type!=='summary')return filtered(type);
  const mode=$('summaryAggregation').value,average=mode!=='time',all=$('summaryScope').value==='all';
@@ -204,7 +217,7 @@ function renderDetailCharts(){
   drawTrend($(id),{rows,dates,stores,colors,key,unit,target:TARGET,date:detailSelectedDate,wide:$('detailZoom').value==='wide',onDate:day=>{detailSelectedDate=day;renderDetailCharts();}});
  }
 }
-['detailCategory','detailTime','detailFrom','detailTo','detailPeriod','detailScope','detailZoom'].forEach(id=>$(id).addEventListener('change',()=>{if(id==='detailCategory')detailCategories[S.tab]=$(id).value;if(['detailFrom','detailTo'].includes(id))detailAutoRange=false;renderDetailCharts();}));
+['detailCategory','detailTime','detailFrom','detailTo','detailPeriod','detailScope','detailZoom'].forEach(id=>bindChange($(id),()=>{if(id==='detailCategory')detailCategories[S.tab]=$(id).value;if(['detailFrom','detailTo'].includes(id))detailAutoRange=false;renderDetailCharts();}));
 let chartDate='';
 const chartHidden=new Set();
 const chartColors=['#0f62fe','#c0392b','#15803d','#9333ea','#b45309','#0e7490','#be185d','#475569'];
@@ -251,7 +264,7 @@ function renderMarketOverview(rows,filters,average,period,timeLabel){
  }).join('');
  $('marketOverview').innerHTML=`${controls}<p class="small">${rangeMode()?$('from').value+'〜'+$('to').value+' / 期間平均':day+(period!=='day'?'〜'+bounds.end:'')} / ${timeLabel} / ${esc(filters.group||filters.rate||'店舗総合')}<br>比較：${rangeMode()?$('compareDate').value+'〜'+$('compareEnd').value:(prior||'未指定')+(prior&&period!=='day'?'〜'+periodBounds(prior,period).end:'')}</p><div class="market-kpis">${tiles.map(([label,value,note])=>`<div class="kpi"><div class="l">${label}</div><div class="v">${value}</div><div class="small">${note}</div></div>`).join('')}</div><div class="market-note">${snapshot.leader?'シェア首位：<b>'+esc(snapshot.leader.store)+' '+format(snapshot.leader.share,'%')+'</b><br>':''}${events?'帯広店を上回る競合とイベント：'+events:'帯広店を上回る報告店舗はありません。帯広店データ未取得の場合は比較できません。'}${!snapshot.comparable?'<p class="small">比較データ未取得、または報告店舗・取得日が異なるため、市場客数とシェアの増減は比較しません。</p>':''}</div>`;
 }
-$('marketOverview').addEventListener('change',event=>{
+bindChange($('marketOverview'),event=>{
  if(event.target.id!=='marketDate'||!event.target.value)return;
  const day=event.target.value,bounds=periodBounds(day,$('chartPeriod').value);
  if(!$('from').value||$('from').value>bounds.start)$('from').value=bounds.start;
@@ -282,10 +295,10 @@ function renderTrendDetails(rows,selected,time){
   return `<tr><td>${esc(r.store)}<br>${r.share}%（帯広店より${Math.round((r.share-own.share)*10)/10}pt高い）</td><td style="white-space:pre-wrap">${event?esc(event):'記載なし・未取得'}</td></tr>`;
  }).join('')+'</tbody></table>':'<p>帯広店のシェアを上回る報告店舗はありません。</p>');
 }
-['chartZoom','chartPeriod'].forEach(id=>$(id).addEventListener('change',drawChart));
-$('chartAggregation').addEventListener('change',()=>selectTime($('chartAggregation').value==='average'?'':$('time').value||'11'));
-$('chartGroup').addEventListener('change',drawChart);
-$('chartStores').addEventListener('change',event=>{const el=event.target;if(!el.matches('input[data-store]'))return;if(el.checked)chartHidden.delete(el.dataset.store);else chartHidden.add(el.dataset.store);drawChart();});
+['chartZoom','chartPeriod'].forEach(id=>bindChange($(id),drawChart));
+bindChange($('chartAggregation'),()=>selectTime($('chartAggregation').value==='average'?'':$('time').value||'11'));
+bindChange($('chartGroup'),drawChart);
+bindChange($('chartStores'),event=>{const el=event.target;if(!el.matches('input[data-store]'))return;if(el.checked)chartHidden.delete(el.dataset.store);else chartHidden.add(el.dataset.store);drawChart();});
 function csvEscape(v){v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function exportCsv(){const type=S.tab,rows=detailRows(type);if(!rows.length){alert('出力するデータがありません');return}let cols=type==='records'?[['date','日付'],['time','時間'],['store','店舗'],['rate','貸玉'],['machines','台数'],['male','男性'],['female','女性'],['customers','客数'],['util','稼働率%'],['share','客数シェア%']]:type==='summary'?[['date','日付'],['time','時間'],['store','店舗'],['storeTotal','総台数'],['customers','客数'],['util','稼働率%'],['share','客数シェア%'],['event','イベント']]:[['date','日付'],['time','時間'],['store','店舗'],['group','機種群'],['machines','台数'],['customers','客数'],['util','稼働率%']];const csv='\ufeff'+cols.map(x=>x[1]).join(',')+'\n'+rows.map(r=>cols.map(c=>csvEscape(r[c[0]])).join(',')).join('\n');download(new Blob([csv],{type:'text/csv;charset=utf-8'}),`帯広店_稼働メール_${type}_${new Date().toISOString().slice(0,10)}.csv`)}
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
@@ -358,13 +371,14 @@ $('loginForm').onsubmit=async event=>{
 };
 window.addEventListener('online',async()=>{await initialized;refreshNetwork();$('syncError').textContent='';await connectApi();});window.addEventListener('offline',refreshNetwork);
 const drop=$('drop'),file=$('file');drop.onclick=()=>file.click();file.onchange=e=>loadFiles([...e.target.files]);['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
-['from','to','time','store','rate','base','compareDate','compareEnd'].forEach(id=>$(id).addEventListener('change',()=>{if(['from','to'].includes(id))autoRange=false;if(id==='time'){selectTime($('time').value);return;}if(id==='compareDate')$('base').value=$('compareEnd').value?'range':'custom';if(id==='compareEnd')$('base').value='range';if(id==='base'&&!['custom','range'].includes($('base').value)){$('compareDate').value='';$('compareEnd').value='';}renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
+['from','to','time','store','rate','base','compareDate','compareEnd'].forEach(id=>bindChange($(id),()=>{if(['from','to'].includes(id))autoRange=false;if(id==='time'){selectTime($('time').value);return;}if(id==='compareDate')$('base').value=$('compareEnd').value?'range':'custom';if(id==='compareEnd')$('base').value='range';if(id==='base'&&!['custom','range'].includes($('base').value)){$('compareDate').value='';$('compareEnd').value='';}renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart()}));
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.tab=b.dataset.tab;renderTable()});
-['summaryAggregation','summaryHour','summaryScope'].forEach(id=>$(id).addEventListener('change',renderTable));
+['summaryAggregation','summaryHour','summaryScope'].forEach(id=>bindChange($(id),renderTable));
 $('csvBtn').onclick=exportCsv;$('backupBtn').onclick=backup;$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=e=>e.target.files[0]&&restore(e.target.files[0]);$('clearBtn').onclick=async()=>{if(confirm('この端末のデータと未送信VMGをクリアしますか？サーバーのデータは削除されません。')){S.records=[];S.summaries=[];S.specials=[];S.mailKeys.clear();S.emails=0;S.pendingVMG=[];S.pendingEmails=[];autoRange=true;$('from').value='';$('to').value='';await saveState();updateAll();$('status').textContent='データをクリアしました。'}};
 document.querySelectorAll('.bottomnav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.bottomnav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById(b.dataset.target).scrollIntoView({behavior:'smooth',block:'start'})});
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBanner').classList.add('show')});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBanner').classList.remove('show')}};$('installClose').onclick=()=>$('installBanner').classList.remove('show');
-if('serviceWorker'in navigator){const updating=Boolean(navigator.serviceWorker.controller);navigator.serviceWorker.addEventListener('controllerchange',()=>{if(updating)location.reload();});}
+if('serviceWorker'in navigator){const updating=Boolean(navigator.serviceWorker.controller);navigator.serviceWorker.addEventListener('controllerchange',()=>{if(updating)$('appUpdate').hidden=false;});}
+$('applyUpdate').onclick=()=>location.reload();
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
 window.addEventListener('resize',()=>{drawChart();renderDetailCharts();});
 const initialized=loadState();
