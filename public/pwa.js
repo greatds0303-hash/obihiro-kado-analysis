@@ -1,5 +1,5 @@
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
-import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts,marketSizeRows} from './analysis.js';
+import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts,marketSizeComparison} from './analysis.js';
 import {drawTrend} from './trend-chart.js';
 import {request} from './api-client.js';
 
@@ -223,10 +223,19 @@ const chartHidden=new Set();
 const chartColors=['#0f62fe','#c0392b','#15803d','#9333ea','#b45309','#0e7490','#be185d','#475569'];
 function renderMarketSize(){
  const from=$('from').value,to=$('to').value,time=$('time').value?Number($('time').value):'average';
- const rows=marketSizeRows(S,{from,to,time});
- $('marketSizeContext').textContent=`${from||'開始日未指定'}〜${to||'終了日未指定'} / ${time==='average'?'11・15・19時平均':time+'時'} / 期間平均・全店舗`;
- $('marketSizeRows').innerHTML=rows.map(r=>`<tr data-category="${esc(r.category)}"><td>${esc(r.category)}</td><td><b>${r.customers==null?'未取得':r.customers.toLocaleString('ja-JP')+'名'}</b></td><td class="small">集計 ${r.days}日 / ${r.storesMin===r.storesMax?r.storesMax:r.storesMin+'〜'+r.storesMax}店舗${r.unavailableDays?'<br>データ不足 '+r.unavailableDays+'日':''}</td></tr>`).join('')||'<tr><td colspan="3">この期間のデータはありません。</td></tr>';
+ const monthly=$('marketSizePeriod').value==='month';
+ const months=uniq([...S.summaries,...S.records].filter(r=>(!from||r.date>=from)&&(!to||r.date<=to)).map(r=>r.date.slice(0,7)));
+ const periods=monthly?months.map(month=>{const b=periodBounds(month+'-01','month');return {label:month,from:from&&from>b.start?from:b.start,to:to&&to<b.end?to:b.end};}):[{label:'range',from,to}];
+ $('marketSizeContext').textContent=`${from||'開始日未指定'}〜${to||'終了日未指定'} / ${time==='average'?'11・15・19時平均':time+'時'} / ${monthly?'月ごとの平均':'期間平均'}・全店舗`;
+ $('marketSizeRows').innerHTML=periods.map(period=>{
+  const comparison=marketSizeComparison(S,{from:period.from,to:period.to,time});
+  return `<tr><th colspan="3" style="text-align:left">${monthly?esc(period.label)+' / ':''}当期：${esc(comparison.from||'未指定')}〜${esc(comparison.to||'未指定')}<br><span class="small">前月比較：${esc(comparison.previousFrom||'未指定')}〜${esc(comparison.previousTo||'未指定')}</span></th></tr>`+comparison.rows.map(r=>{
+   const delta=r.delta==null?`<span class="small">${esc(r.reason)}</span>`:`<span class="market-delta" style="color:${r.delta<0?'#c13d3d':'#172033'}">前月比 ${fmtDelta(r.delta)}名${r.changePercent==null?'':`（${fmtDelta(r.changePercent)}%）`}</span>`;
+   return `<tr data-period="${esc(period.label)}" data-category="${esc(r.category)}"><td>${esc(r.category)}</td><td><b>${r.customers==null?'未取得':r.customers.toLocaleString('ja-JP')+'名'}</b><br>${delta}${r.previousCustomers==null?'':`<br><span class="small">前月 ${r.previousCustomers.toLocaleString('ja-JP')}名 / 集計 ${r.previousDays}日${r.delta!=null&&r.changePercent==null?' / 前月0名のため増減率なし':''}</span>`}</td><td class="small">集計 ${r.days}日 / ${r.storesMin===r.storesMax?r.storesMax:r.storesMin+'〜'+r.storesMax}店舗${r.unavailableDays?'<br>データ不足 '+r.unavailableDays+'日':''}</td></tr>`;
+  }).join('');
+ }).join('')||'<tr><td colspan="3">この期間のデータはありません。</td></tr>';
 }
+bindChange($('marketSizePeriod'),renderMarketSize);
 function drawChart(){
  renderMarketSize();
  const tm=+$('time').value||11,rate=$('rate').value,group=$('chartGroup').value;

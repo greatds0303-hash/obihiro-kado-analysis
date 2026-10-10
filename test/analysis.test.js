@@ -134,3 +134,29 @@ test('市場規模は欠測や時間ごとに報告店舗が異なる日を平�
  assert.equal(row.customers,0);assert.equal(row.days,1);assert.equal(row.unavailableDays,2);
  assert.equal(marketSizeRows({summaries},{from:'2026-10-08',to:'2026-10-08',time:11})[0].customers,null);
 });
+
+test('市場客数の前月比は月末を合わせて客数差と増減率を算出する',async()=>{
+ const {marketSizeComparison}=await import('../public/analysis.js');
+ const summaries=[],records=[];
+ for(const [month,days,customers] of [['08',31,100],['09',30,120]])for(let day=1;day<=days;day++)for(const time of [11,15,19])for(const store of ['A','B']){
+  const date=`2026-${month}-${String(day).padStart(2,'0')}`;
+  summaries.push({date,time,store,customers});records.push({date,time,store,rate:store==='A'?'12.5円S':'21.74円S',customers:customers/2});
+ }
+ const result=marketSizeComparison({summaries,records},{from:'2026-09-01',to:'2026-09-30'});
+ assert.equal(result.previousFrom,'2026-08-01');assert.equal(result.previousTo,'2026-08-31');
+ assert.equal(result.rows[0].delta,40);assert.equal(result.rows[0].changePercent,20);assert.equal(result.rows[0].previousCustomers,200);
+ assert.equal(result.rows.find(r=>r.category==='20S').delta,20);
+ const negative=marketSizeComparison({summaries,records:[]},{from:'2026-09-01',to:'2026-09-02',time:11});
+ assert.equal(negative.rows[0].delta,40);assert.equal(negative.previousTo,'2026-08-02');
+});
+test('市場客数の前月比は店舗構成や取得日の不一致・前月データ不足を比較不可にする',async()=>{
+ const {marketSizeComparison}=await import('../public/analysis.js');
+ const summaries=[{date:'2026-08-01',time:11,store:'A',customers:0},{date:'2026-09-01',time:11,store:'A',customers:10}];
+ const opts={from:'2026-09-01',to:'2026-09-01',time:11};
+ const zero=marketSizeComparison({summaries},opts).rows[0];assert.equal(zero.delta,10);assert.equal(zero.changePercent,null);
+ summaries.push({date:'2026-09-01',time:11,store:'B',customers:5});assert.equal(marketSizeComparison({summaries},opts).rows[0].delta,null);
+ assert.match(marketSizeComparison({summaries:[]},opts).rows[0].reason,/データ/);
+ assert.equal(marketSizeComparison({summaries:summaries.filter(r=>r.store==='A')},{from:'2026-09-01',to:'2026-09-02',time:11}).rows[0].delta,10);
+ const missing=[...summaries.filter(r=>r.store==='A'),{date:'2026-09-02',time:11,store:'A',customers:10}];
+ assert.equal(marketSizeComparison({summaries:missing},{from:'2026-09-01',to:'2026-09-02',time:11}).rows[0].delta,null);
+});

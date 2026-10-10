@@ -338,3 +338,22 @@ test('市場客数は全店舗の全種別とカテゴリー別で期間と時�
  await page.locator('#latestTime').selectOption('average');await expect(total).toContainText('666.7名');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
+
+test('市場客数の月別前月比を増加は黒・減少は赤で表示し時間選択を反映する',async({page})=>{
+ const summaries=[],records=[];
+ for(const [month,customers,slots] of [['08',100,50],['09',120,70],['10',90,60]])for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','競合店']){
+  const date=`2026-${month}-01`,factor=time===11?1:2;
+  summaries.push({date,time,store,customers:customers*factor,storeTotal:500});records.push({date,time,store,rate:store.startsWith('イーグル')?'12.5円S':'21.74円S',customers:slots*factor,machines:100});
+ }
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'market-month.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records,specials:[]}))});
+ await page.locator('#marketSizePeriod').selectOption('month');
+ const sep=page.locator('#marketSize tr[data-period="2026-09"][data-category="全種別"]'),oct=page.locator('#marketSize tr[data-period="2026-10"][data-category="全種別"]');
+ await expect(sep).toContainText('400名');await expect(sep).toContainText('前月比 +66.7名');await expect(sep).toContainText('+20%');await expect(sep.locator('.market-delta')).toHaveCSS('color','rgb(23, 32, 51)');
+ await expect(oct).toContainText('前月比 -100名');await expect(oct).toContainText('-25%');await expect(oct.locator('.market-delta')).toHaveCSS('color','rgb(193, 61, 61)');
+ await expect(page.locator('#marketSize tr[data-period="2026-09"][data-category="20S"]')).toContainText('前月比 +66.7名');
+ await page.locator('#time').selectOption('11');await expect(sep).toContainText('240名');await expect(sep).toContainText('前月比 +40名');
+ await page.locator('#from').fill('2026-09-01');await page.locator('#to').fill('2026-09-01');await page.locator('#marketSizePeriod').selectOption('range');
+ const total=page.locator('#marketSize tr[data-category="全種別"]');await expect(total).toContainText('前月比 +40名');await expect(page.locator('#marketSize')).toContainText('前月比較：2026-08-01〜2026-08-01');
+ await page.locator('#from').fill('2026-08-01');await page.locator('#to').fill('2026-08-01');await expect(total).toContainText('前月データ未取得');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+});
