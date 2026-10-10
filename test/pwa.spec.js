@@ -130,7 +130,7 @@ test('スマホの先頭で市場客数・自店シェア・順位・競合イ�
  const report=text.replace('総合計12名 12%','総合計212名 21%\n新台入替');
  await page.goto('http://127.0.0.1:3102/');await page.locator('#latestTime').selectOption('11');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
  await expect(page.locator('#marketOverview')).toContainText('341名');await expect(page.locator('#marketOverview')).toContainText('2位');await expect(page.locator('#marketOverview')).toContainText('新台入替');
- expect(await page.locator('.wrap > .card').first().getAttribute('id')).toBe('marketOverview');
+ expect(await page.locator('.wrap > .card').first().getAttribute('id')).toBe('shareAlerts');
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'/tmp/obihiro-market-overview.png'});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
@@ -283,4 +283,14 @@ test('店舗表は実貸玉表記でカテゴリーは11.25Sと21.74Sを20Sに�
  await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'rates.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({records,summaries,specials:[]}))});
  await expect(page.locator('#rateCompare')).toContainText('11.25円S');await expect(page.locator('#rate option')).toHaveText(['すべて','20S']);await page.locator('#rate').selectOption('20S');await expect(page.locator('#ranking tbody tr')).toHaveCount(2);await expect(page.locator('#ranking')).toContainText('75%');
  await page.locator('#store').selectOption('競合店');await expect(page.locator('#rateCompare')).toContainText('21.74円S');await expect(page.locator('#rateCompare')).not.toContainText('11.25円S');
+});
+
+test('帯広店の貸玉と機種の連続低下を起動・取込時に通知し欠測は判定不可とする',async({page})=>{
+ const records=[],specials=[],summaries=[];
+ for(const [i,date] of ['2026-10-06','2026-10-07','2026-10-08'].entries())for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','競合店']){const customers=store.startsWith('イーグル')?30-i*10:70+i*10,row={date,time,store,customers,util:customers,machines:100};records.push({...row,rate:'11.25円S'});specials.push({...row,group:'ジャグラー'});summaries.push({...row,storeTotal:100});}
+ const backup={records,specials,summaries};await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'alerts.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});
+ await expect(page.locator('#shareAlertContent')).toContainText('危険：貸玉種別 20S');await expect(page.locator('#shareAlertContent')).toContainText('危険：機種群 ジャグラー');await expect(page.locator('#shareAlertContent')).toContainText('−20pt');await expect(page.locator('#shareAlertContent')).toContainText('30%');
+ await page.locator('#store').selectOption('競合店');await page.locator('#from').fill('2026-10-08');await expect(page.locator('#shareAlertContent')).toContainText('危険：貸玉種別 20S');await page.locator('#alertTime').selectOption('15');await expect(page.locator('#shareAlertContent')).toContainText('危険：機種群 ジャグラー');
+ await page.reload();await expect(page.locator('#shareAlertContent')).toContainText('危険：貸玉種別 20S');
+ backup.records=records.filter(r=>!(r.date==='2026-10-07'&&r.time===15&&r.store.startsWith('イーグル')));await page.locator('#restoreFile').setInputFiles({name:'missing.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});await expect(page.locator('#shareAlertContent')).not.toContainText('危険：貸玉種別');await expect(page.locator('#shareAlertContent')).toContainText('判定できないカテゴリー 1件');
 });

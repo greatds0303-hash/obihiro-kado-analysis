@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {comparisonDate,compareRows,mergeRows,rangeTrendRows,rateCategory} from '../public/analysis.js';
+import {comparisonDate,compareRows,mergeRows,rangeTrendRows,rateCategory,shareDeclineAlerts} from '../public/analysis.js';
 test('東京時間でも日付をずらさず前日・前週・4週前',()=>{
  assert.equal(comparisonDate('2026-10-06','1'),'2026-10-05');assert.equal(comparisonDate('2026-10-06','7'),'2026-09-29');assert.equal(comparisonDate('2026-10-06','28'),'2026-09-08');
 });
@@ -95,4 +95,20 @@ test('指定期間の平均は取得日のみを集計しシェアを客数か�
 
 test('11.25Sと21.73Sと21.74Sも20Sへ分類する',()=>{
  for(const rate of ['11.24S','11.25円S','12.5S','20S','21.73円S','21.74S'])assert.equal(rateCategory(rate),'20S');
+});
+
+function declineData(){
+ const records=[],specials=[],summaries=[];
+ for(const [i,date] of ['2026-10-06','2026-10-07','2026-10-08'].entries())for(const time of [11,15,19])for(const store of ['自店','競合']){const customers=store==='自店'?30-i*10:70+i*10;const row={date,time,store,customers,util:customers,machines:100};records.push({...row,rate:'11.25円S'});specials.push({...row,group:'ジャグラー'});summaries.push({...row,storeTotal:100});}
+ return {records,specials,summaries};
+}
+test('貸玉と機種の3日連続低下を平均シェアから検出する',()=>{
+ const result=shareDeclineAlerts(declineData(),{target:'自店'});assert.equal(result.alerts.length,2);assert.deepEqual(result.alerts[0].shares,[30,20,10]);assert.equal(result.alerts[0].drop,20);assert.equal(result.checked,2);
+});
+test('欠測・報告店舗変更・古い3日分を危険と誤判定しない',()=>{
+ const data=declineData();data.records=data.records.filter(r=>!(r.date==='2026-10-07'&&r.time===15&&r.store==='自店'));data.specials=data.specials.map(r=>r.date==='2026-10-08'&&r.store==='競合'?{...r,store:'別店舗'}:r);let result=shareDeclineAlerts(data,{target:'自店'});assert.equal(result.alerts.length,0);assert.equal(result.unavailable.length,2);
+ data.summaries.push({date:'2026-10-09',time:11,store:'自店',customers:1});result=shareDeclineAlerts(data,{target:'自店'});assert.equal(result.alerts.length,0);
+});
+test('横ばい・一時回復・自店だけの市場は低下通知しない',()=>{
+ const data=declineData();data.records=data.records.filter(r=>r.store==='自店');data.specials=data.specials.map(r=>({...r,customers:50}));const result=shareDeclineAlerts(data,{target:'自店'});assert.equal(result.alerts.length,0);assert.equal(result.checked,1);assert.equal(result.unavailable.length,1);
 });

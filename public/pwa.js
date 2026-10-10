@@ -1,5 +1,5 @@
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
-import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows} from './analysis.js';
+import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts} from './analysis.js';
 import {drawTrend} from './trend-chart.js';
 import {request} from './api-client.js';
 
@@ -60,12 +60,20 @@ function filtered(type){const arr=S[type==='summary'?'summaries':type],f=$('from
 function dayDiff(date,days){return comparisonDate(date,String(days))}
 function fmtDelta(v){if(v==null||Number.isNaN(v))return '-';return(v>0?'+':'')+v}
 function updateAll(){
+  renderShareAlerts();
   const dates=uniq(S.summaries.map(x=>x.date)),stores=uniq(S.summaries.map(x=>x.store));$('kEmails').textContent=S.emails.toLocaleString();$('kDays').textContent=dates.length.toLocaleString();$('kRecords').textContent=S.records.length.toLocaleString();$('kStores').textContent=stores.length;$('kRange').textContent=dates.length?`${dates[0].slice(5).replace('-','/')}〜${dates.at(-1).slice(5).replace('-','/')}`:'-';
   fillSelect('store',stores,TARGET);const groupSelect=$('chartGroup'),selectedGroup=groupSelect.value;groupSelect.innerHTML='<option value="">全体・貸玉種別で比較</option>'+uniq(S.specials.map(r=>r.group)).map(group=>`<option>${esc(group)}</option>`).join('');groupSelect.value=selectedGroup;fillSelect('rate',uniq(S.records.map(x=>rateCategory(x.rate))));if(dates.length&&autoRange){$('from').value=dates.at(-1).slice(0,4)+'-07-04';if($('from').value>dates.at(-1))$('from').value=dates[0];$('to').value=dates.at(-1)}
   renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();refreshNetwork()
 }
 
 function deltaHtml(value,unit){return `<span class="delta ${value>0?'pos':value<0?'neg':''}">${value==null?'比較なし':fmtDelta(value)+unit}</span>`;}
+function renderShareAlerts(){
+ const result=shareDeclineAlerts(S,{target:TARGET,time:$('alertTime').value});
+ if(!result.latest){$('shareAlertContent').innerHTML='<p class="small">メールを取り込むと判定します。</p>';return;}
+ const cards=result.alerts.map(item=>`<div style="margin-top:10px;padding:12px;border:2px solid #c13d3d;border-radius:10px;background:#fff3f2;color:#9c2020"><b>危険：${esc(item.kind)} ${esc(item.name)}</b><br>3日間で連続低下 / −${item.drop}pt<br>${item.dates.map((date,i)=>`${date}：<b>${item.shares[i]}%</b>`).join(' → ')}</div>`).join('');
+ $('shareAlertContent').innerHTML=`<p class="small">${result.dates[0]}〜${result.latest} / 判定できたカテゴリー ${result.checked}件</p>`+(cards||`<p>${result.checked?'判定できたカテゴリーに3日間の連続低下はありません。':'判定に必要な3日分のデータがありません。'}</p>`)+(result.unavailable.length?`<details style="margin-top:10px"><summary>判定できないカテゴリー ${result.unavailable.length}件</summary>${result.unavailable.map(item=>`<p class="small">${esc(item.kind)} ${esc(item.name)}：${esc(item.reason)}</p>`).join('')}</details>`:'');
+}
+$('alertTime').addEventListener('change',renderShareAlerts);
 function renderLatestCustomerKpi(){
  const store=$('store').value||TARGET,mode=$('latestTime').value;
  const source=mode==='average'?averageTrendRows(S):S.summaries.filter(row=>row.time===Number(mode));

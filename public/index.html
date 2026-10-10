@@ -36,6 +36,12 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 <div class="topbar"><div class="title">EAGLE 帯広店 稼働分析</div><div class="sub">メール自動同期・VMG解析・端末内保存</div></div>
 
 <div class="wrap" id="home">
+  <div class="card" id="shareAlerts">
+    <b>帯広店 シェア低下のお知らせ</b>
+    <div class="field" style="margin-top:10px"><label for="alertTime">判定する時間</label><select id="alertTime"><option value="average">11・15・19時平均</option><option value="11">11時</option><option value="15">15時</option><option value="19">19時</option></select></div>
+    <div id="shareAlertContent" aria-live="polite"></div>
+    <p class="small">保存データの最新日を含む連続3日で、日別シェアが順に下がった貸玉種別・機種群を表示。同じ報告店舗が3日そろう場合のみ判定します。日付・店舗の絞り込みに関係なく帯広店を確認します。</p>
+  </div>
   <div class="card" id="marketOverview"><b>市場の動き</b><p class="small">メールを取り込むと、市場全体と帯広店の動きを表示します。</p></div>
   <div class="card">
     <div class="row" style="justify-content:space-between"><b>メール本文を取り込む</b><span id="networkStatus" class="small" role="status"></span></div>
