@@ -132,8 +132,8 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
       <button class="tab" data-tab="specials">注目機種群</button>
     </div>
     <div id="summaryControls" class="row" style="margin-top:10px">
-      <label>表示単位 <select id="summaryAggregation"><option value="time">時間帯別（11・15・19時）</option><option value="average">1日平均（11・15・19時）</option><option value="range">指定期間の平均（11・15・19時）</option><option value="month">月ごとの平均（11・15・19時）</option></select></label>
-      <label>店舗表示 <select id="summaryScope"><option value="selected">選択中の店舗</option><option value="all">全店舗まとめて</option></select></label>
+      <label>表示単位 <select id="summaryAggregation"><option value="average" selected>1日平均（11・15・19時の平均）</option><option value="time">時間別</option><option value="range">指定期間の平均（11・15・19時）</option><option value="month">月ごとの平均（11・15・19時）</option></select></label>
+      <label id="summaryHourField" hidden>時間 <select id="summaryHour"><option value="11">11時</option><option value="15">15時</option><option value="19">19時</option></select></label><label>店舗表示 <select id="summaryScope"><option value="all" selected>全店舗まとめて</option><option value="selected">選択中の店舗</option></select></label>
       <span class="small">1日平均は3回の平均値です。3回分がそろわない日は未取得と表示します。</span>
     </div>
     <section id="detailCharts" hidden style="margin-top:12px">
