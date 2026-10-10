@@ -1,5 +1,5 @@
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
-import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts} from './analysis.js';
+import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts,marketSizeRows} from './analysis.js';
 import {drawTrend} from './trend-chart.js';
 import {request} from './api-client.js';
 
@@ -221,7 +221,14 @@ function renderDetailCharts(){
 let chartDate='';
 const chartHidden=new Set();
 const chartColors=['#0f62fe','#c0392b','#15803d','#9333ea','#b45309','#0e7490','#be185d','#475569'];
+function renderMarketSize(){
+ const from=$('from').value,to=$('to').value,time=$('time').value?Number($('time').value):'average';
+ const rows=marketSizeRows(S,{from,to,time});
+ $('marketSizeContext').textContent=`${from||'開始日未指定'}〜${to||'終了日未指定'} / ${time==='average'?'11・15・19時平均':time+'時'} / 期間平均・全店舗`;
+ $('marketSizeRows').innerHTML=rows.map(r=>`<tr data-category="${esc(r.category)}"><td>${esc(r.category)}</td><td><b>${r.customers==null?'未取得':r.customers.toLocaleString('ja-JP')+'名'}</b></td><td class="small">集計 ${r.days}日 / ${r.storesMin===r.storesMax?r.storesMax:r.storesMin+'〜'+r.storesMax}店舗${r.unavailableDays?'<br>データ不足 '+r.unavailableDays+'日':''}</td></tr>`).join('')||'<tr><td colspan="3">この期間のデータはありません。</td></tr>';
+}
 function drawChart(){
+ renderMarketSize();
  const tm=+$('time').value||11,rate=$('rate').value,group=$('chartGroup').value;
  const filters={group,rate:group?'':rate,from:$('from').value,to:$('to').value};
  const period=$('chartPeriod').value,averages=periodTrendRows(averageTrendRows(S,filters),period),average=!$('time').value||$('chartAggregation').value==='average',timeLabel=average?'11・15・19時平均':`${tm}時`,periodLabel={day:'毎日',week:'週間',month:'月間'}[period];

@@ -33,6 +33,31 @@ export function rateCategory(rate){
  }
  return rate;
 }
+// Market size is an average of daily market counts, never a sum across days.
+// Three-hour averages require the same reporting stores at all three hours.
+export function marketSizeRows(data,{from='',to='',time='average'}={}){
+ if(from&&to&&from>to)return [];
+ const inRange=r=>(!from||r.date>=from)&&(!to||r.date<=to),records=(data.records||[]).filter(inRange);
+ const categories=[...new Set(records.map(r=>rateCategory(r.rate)))].sort((a,b)=>a.localeCompare(b,'ja'));
+ const hours=time==='average'?[11,15,19]:[Number(time)];
+ return ['全種別',...categories].map(category=>{
+  const source=category==='全種別'?(data.summaries||[]).filter(inRange):records.filter(r=>rateCategory(r.rate)===category);
+  const observations=new Map();
+  for(const r of source)if(hours.includes(r.time))observations.set(JSON.stringify([r.date,r.time,r.store,category==='全種別'?'':r.rate]),r);
+  const dates=new Map();
+  for(const r of observations.values()){
+   if(!dates.has(r.date))dates.set(r.date,new Map());const times=dates.get(r.date);
+   if(!times.has(r.time))times.set(r.time,[]);times.get(r.time).push(r);
+  }
+  const valid=[];
+  for(const times of dates.values()){
+   const samples=hours.map(hour=>times.get(hour)||[]),cohorts=samples.map(rows=>JSON.stringify([...new Set(rows.map(r=>r.store))].sort()));
+   if(!samples.every(rows=>rows.length&&rows.every(r=>Number.isFinite(r.customers)))||!cohorts.every(c=>c===cohorts[0]))continue;
+   valid.push({customers:samples.reduce((sum,rows)=>sum+rows.reduce((n,r)=>n+r.customers,0),0)/hours.length,stores:new Set(samples[0].map(r=>r.store)).size});
+  }
+  return {category,customers:valid.length?Math.round(valid.reduce((n,r)=>n+r.customers,0)/valid.length*10)/10:null,days:valid.length,unavailableDays:dates.size-valid.length,storesMin:valid.length?Math.min(...valid.map(r=>r.stores)):0,storesMax:valid.length?Math.max(...valid.map(r=>r.stores)):0};
+ });
+}
 export function trendRows(data,{group='',rate='',time=11,from='',to=''}={}){
  const source=(group?data.specials:rate?data.records:data.summaries)||[];
  const buckets=new Map();

@@ -44,6 +44,12 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
     <p class="small">保存データの最新日を含む連続3日で、日別シェアが順に下がった貸玉種別・機種群を表示。同じ報告店舗が3日そろう場合のみ判定します。日付・店舗の絞り込みに関係なく帯広店を確認します。</p>
   </div>
   <div class="card" id="marketOverview"><b>市場の動き</b><p class="small">メールを取り込むと、市場全体と帯広店の動きを表示します。</p></div>
+  <div class="card" id="marketSize">
+    <b>市場客数（全種別・種別別）</b>
+    <p class="small" id="marketSizeContext"></p>
+    <div style="overflow-x:auto"><table><thead><tr><th>種別</th><th>市場客数</th><th>集計状況</th></tr></thead><tbody id="marketSizeRows"></tbody></table></div>
+    <p class="small">報告された全店舗の客数を日ごとに合計し、指定期間で平均します。店舗・貸玉の絞り込みに関係なく全種別を表示。時間「すべて」は11・15・19時の平均です。3回そろわない日や時間ごとに報告店舗が異なる日は平均から除外します。全種別は店舗総合の客数を使用し、種別別は貸玉別の報告を使用するため、報告内容により合計が一致しない場合があります。</p>
+  </div>
   <div class="card">
     <div class="row" style="justify-content:space-between"><b>メール本文を取り込む</b><span id="networkStatus" class="small" role="status"></span></div>
     <p class="small">ドコモメールで稼働報告を開き、本文をコピーして下の欄に貼り付けてください。日時・店舗名から末尾まで含めます。</p>

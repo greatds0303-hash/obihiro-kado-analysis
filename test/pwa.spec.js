@@ -322,3 +322,19 @@ test('選択後にフォーカスを外してから更新しアプリ更新で�
  await page.locator('#summaryAggregation').focus();await page.locator('#summaryAggregation').selectOption('month');await expect.poll(()=>page.evaluate(()=>document.activeElement?.id)).not.toBe('summaryAggregation');await expect(page.locator('#summaryAggregation')).toHaveValue('month');expect(await page.evaluate(()=>document.querySelector('#summaryAggregation').dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true})))).toBeFalsy();
  await page.evaluate(()=>{window.__retained=true;navigator.serviceWorker.dispatchEvent(new Event('controllerchange'));});await expect(page.locator('#appUpdate')).toBeVisible();expect(await page.evaluate(()=>window.__retained)).toBeTruthy();await expect(page.locator('#summaryAggregation')).toHaveValue('month');
 });
+
+test('市場客数は全店舗の全種別とカテゴリー別で期間と時間に連動する',async({page})=>{
+ const summaries=[],records=[];
+ for(const [date,factor] of [['2026-10-06',1],['2026-10-07',2]])for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','競合店']){
+  summaries.push({date,time,store,customers:time===11?100*factor:200*factor,storeTotal:500});
+  for(const [rate,customers] of [['12.5円S',10],['21.74円S',20],['1.12円P',5]])records.push({date,time,store,rate,customers:customers*factor,machines:100});
+ }
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'market-size.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records,specials:[]}))});
+ const total=page.locator('#marketSize tr[data-category="全種別"]'),slots=page.locator('#marketSize tr[data-category="20S"]');
+ await expect(total).toContainText('500名');await expect(slots).toContainText('90名');await expect(page.locator('#marketSize')).toContainText('11・15・19時平均');
+ await page.locator('#store').selectOption('競合店');await page.locator('#rate').selectOption('1パチ');await expect(total).toContainText('500名');await expect(slots).toContainText('90名');
+ await page.locator('#time').selectOption('11');await expect(total).toContainText('300名');await expect(page.locator('#marketSizeContext')).toContainText('11時');
+ await page.locator('#from').fill('2026-10-07');await expect(total).toContainText('400名');await expect(slots).toContainText('120名');await expect(page.locator('#marketSize')).toContainText('集計 1日');
+ await page.locator('#latestTime').selectOption('average');await expect(total).toContainText('666.7名');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+});

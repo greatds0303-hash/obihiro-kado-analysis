@@ -112,3 +112,25 @@ test('欠測・報告店舗変更・古い3日分を危険と誤判定しない'
 test('横ばい・一時回復・自店だけの市場は低下通知しない',()=>{
  const data=declineData();data.records=data.records.filter(r=>r.store==='自店');data.specials=data.specials.map(r=>({...r,customers:50}));const result=shareDeclineAlerts(data,{target:'自店'});assert.equal(result.alerts.length,0);assert.equal(result.checked,1);assert.equal(result.unavailable.length,1);
 });
+
+test('市場規模は全種別と統合カテゴリーの市場客数を日別合計して期間平均する',async()=>{
+ const {marketSizeRows}=await import('../public/analysis.js');
+ const summaries=[],records=[];
+ for(const [date,factor] of [['2026-10-06',1],['2026-10-07',2]])for(const time of [11,15,19])for(const store of ['A','B']){
+  summaries.push({date,time,store,customers:time===11?100*factor:200*factor});
+  for(const [rate,customers] of [['12.5円S',10],['21.74円S',20],['1.12円P',5]])records.push({date,time,store,rate,customers:customers*factor});
+ }
+ const data={summaries,records};const rows=marketSizeRows(data,{from:'2026-10-06',to:'2026-10-07'});
+ assert.deepEqual(rows.map(r=>[r.category,r.customers,r.days,r.storesMin,r.storesMax]),[['全種別',500,2,2,2],['1パチ',15,2,2,2],['20S',90,2,2,2]]);
+ assert.equal(marketSizeRows(data,{from:'2026-10-07',to:'2026-10-07',time:11})[0].customers,400);
+ assert.equal(marketSizeRows(data,{from:'2026-10-06',to:'2026-10-07',time:15})[0].customers,600);
+});
+test('市場規模は欠測や時間ごとに報告店舗が異なる日を平均に混ぜずゼロ客数は含める',async()=>{
+ const {marketSizeRows}=await import('../public/analysis.js');
+ const summaries=[11,15,19].flatMap(time=>[{date:'2026-10-06',time,store:'A',customers:0},{date:'2026-10-07',time,store:'A',customers:10}]);
+ summaries.push({date:'2026-10-07',time:11,store:'B',customers:20});
+ summaries.push({date:'2026-10-08',time:11,store:'A',customers:null});
+ const [row]=marketSizeRows({summaries},{from:'2026-10-06',to:'2026-10-08'});
+ assert.equal(row.customers,0);assert.equal(row.days,1);assert.equal(row.unavailableDays,2);
+ assert.equal(marketSizeRows({summaries},{from:'2026-10-08',to:'2026-10-08',time:11})[0].customers,null);
+});
