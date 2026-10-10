@@ -156,7 +156,12 @@ function renderTable(){
   const source=$('summaryAggregation').value!=='time'||!$('time').value?averageTrendRows(S):trendRows(S,{time:Number($('time').value)});
   const totals=selectedRange(source),val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
   const metrics=r=>r?`客数 <b>${val(r.customers,'名')}</b><br>シェア ${val(r.share,'%')}<br>稼働率 ${val(r.util,'%')}<br>総台数 ${val(r.storeTotal,'台')}`:'未取得';
-  $('tableWrap').innerHTML='<table class="store-matrix"><thead><tr><th>日付・集計</th>'+stores.map(store=>`<th>${esc(store)}</th>`).join('')+'</tr><tr class="period-average"><td><b>指定期間の平均</b><br>'+esc($('from').value)+'〜'+esc($('to').value)+'</td>'+stores.map(store=>`<td data-store="${esc(store)}">${metrics(totals.find(r=>r.store===store))}</td>`).join('')+'</tr></thead><tbody>'+($('summaryAggregation').value==='range'?[]:keys.slice(0,1000)).map(key=>{const [date,time]=JSON.parse(key);return `<tr><td>${date}<br>${time==='月平均'?date.slice(0,7)+' 月平均（11・15・19時）':time==='1日平均'?'1日平均（11・15・19時）':time+'時'}</td>`+stores.map(store=>`<td data-store="${esc(store)}">${metrics(data.find(r=>r.date===date&&r.time===time&&r.store===store))}</td>`).join('')+'</tr>';}).join('')+'</tbody></table>';
+  const summaryRow=$('summaryAggregation').value!=='range'?'':'<tr class="period-average"><td><b>指定期間の平均</b><br>'+esc($('from').value)+'〜'+esc($('to').value)+'</td>'+stores.map(store=>`<td data-store="${esc(store)}">${metrics(totals.find(r=>r.store===store))}</td>`).join('')+'</tr>';
+  $('tableWrap').innerHTML='<table class="store-matrix"><thead><tr><th>日付・集計</th>'+stores.map(store=>`<th>${esc(store)}</th>`).join('')+'</tr>'+summaryRow+'</thead><tbody>'+($('summaryAggregation').value==='range'?[]:keys.slice(0,1000)).map(key=>{
+   const [date,time]=JSON.parse(key),label=time==='月平均'?date.slice(0,7)+' 月平均（11・15・19時）':date+'<br>'+(time==='1日平均'?'1日平均（11・15・19時）':time+'時');
+   return `<tr><td>${label}</td>`+stores.map(store=>`<td data-store="${esc(store)}">${metrics(data.find(r=>r.date===date&&r.time===time&&r.store===store))}</td>`).join('')+'</tr>';
+  }).join('')+'</tbody></table>';
+
 
 }
 let detailAutoRange=true,detailSelectedDate='';
