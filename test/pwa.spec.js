@@ -71,12 +71,12 @@ test('競合店の客数と稼働率を同時に表示して店舗を切り替�
  await expect(page.locator('#utilChart')).toHaveAttribute('aria-label',/1店舗.*7.5円S/);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
-test('12.5円Sを20スロカテゴリーとして表示する',async({page})=>{
+test('12.5円Sを20Sカテゴリーとして表示する',async({page})=>{
  await page.goto('http://127.0.0.1:3102/');await page.locator('#latestTime').selectOption('11');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();
- await page.locator('#rate').selectOption({label:'20スロ'});
+ await page.locator('#rate').selectOption({label:'20S'});
  await expect(page.locator('#chartStores')).toContainText('イーグル');
  await page.locator('[data-tab="records"]').click();
- await page.locator('#detailCategory').selectOption('20スロ');await expect(page.locator('#detailChartValues')).toContainText('34');
+ await page.locator('#detailCategory').selectOption('20S');await expect(page.locator('#detailChartValues')).toContainText('34');
 });
 test('機種別の全店シェアと勝っている店舗のイベントを表示・再取込で補完',async({page})=>{
  const report=text.replace('スマスロ【30台】 10名 33%','ジャグラー【30台】 6名20%\n4.5 9時開店 来店ポイント交換会').replace('総合計12名 12%','総合計212名 21%\n客数シェア 30%\nジャグラー【60台】 18名30%\n新台入替');
@@ -212,8 +212,8 @@ test('全店舗ランキングは時間・貸玉・順位基準を反映して�
 test('時間選択を貸玉比較とグラフに連動しすべては3回平均を表示する',async({page})=>{
  const report=[text,text.replace('2026/10/06 11時','2026/10/06 15時').replace('合計1名 2%','合計7名 11%'),text.replace('2026/10/06 11時','2026/10/06 19時').replace('合計1名 2%','合計10名 16%')].join('\n');
  await page.goto('http://127.0.0.1:3102/');await page.locator('#latestTime').selectOption('11');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
- await page.locator('#time').selectOption('15');await expect(page.locator('#rateCompare')).toContainText('15時');await expect(page.locator('#chartLabel')).toContainText('15時');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'2.5P'})).toContainText('7');
- await page.locator('#time').selectOption('');await expect(page.locator('#rateCompare')).toContainText('11・15・19時平均');await expect(page.locator('#chartLabel')).toContainText('11・15・19時平均');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'2.5P'})).toContainText('6');
+ await page.locator('#time').selectOption('15');await expect(page.locator('#rateCompare')).toContainText('15時');await expect(page.locator('#chartLabel')).toContainText('15時');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'2.5円P'})).toContainText('7');
+ await page.locator('#time').selectOption('');await expect(page.locator('#rateCompare')).toContainText('11・15・19時平均');await expect(page.locator('#chartLabel')).toContainText('11・15・19時平均');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'2.5円P'})).toContainText('6');
  await page.locator('#time').selectOption('19');await expect(page.locator('#rateCompare')).toContainText('19時');await expect(page.locator('#chartLabel')).toContainText('19時');
 });
 
@@ -231,7 +231,7 @@ test('対象期間と比較期間を自由指定して期間平均を比較す�
  await page.goto('http://127.0.0.1:3102/');await page.locator('#latestTime').selectOption('11');await page.locator('#mailText').fill(reports);await page.locator('#pasteImportBtn').click();
  await page.locator('#from').fill('2026-10-06');await page.locator('#to').fill('2026-10-07');await page.locator('#compareDate').fill('2026-09-01');await page.locator('#compareEnd').fill('2026-09-02');
  await expect(page.locator('#base')).toHaveValue('range');await expect(page.locator('#timeCompareTitle')).toContainText('指定期間の平均');await expect(page.locator('#latestCompare .box').first()).toContainText('149');await expect(page.locator('#latestCompare .box').first()).toContainText('+39名');await expect(page.locator('#latestCompare .box').first()).toContainText('2日取得');
- await expect(page.locator('#rateCompare')).toContainText('期間平均');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'2.5P'})).toContainText('+2名');await expect(page.locator('#rankingContext')).toContainText('期間平均');await expect(page.locator('#marketOverview')).toContainText('2026-09-01〜2026-09-02');
+ await expect(page.locator('#rateCompare')).toContainText('期間平均');await expect(page.locator('#rateCompare tbody tr').filter({hasText:'2.5円P'})).toContainText('+2名');await expect(page.locator('#rankingContext')).toContainText('期間平均');await expect(page.locator('#marketOverview')).toContainText('2026-09-01〜2026-09-02');
  await page.locator('#base').selectOption('7');await expect(page.locator('#timeCompareTitle')).toContainText('最新日');
 });
 
@@ -251,7 +251,7 @@ test('注目機種群と貸玉別にカテゴリー・期間指定の3指標グ�
  await page.locator('#detailFrom').fill('2026-10-07');await expect(page.locator('#detailChartValues tbody tr')).toHaveCount(1);await expect(page.locator('#detailChartValues tbody tr td:first-child')).toContainText('2026-10-07');await expect(page.locator('#detailChartValues')).toContainText('50%');
  await page.locator('#detailCategory').selectOption('ジャグラー');await expect(page.locator('#detailChartValues')).toContainText('25%');
  await page.locator('[data-tab="records"]').click();await page.locator('#detailCategory').selectOption('1パチ');await expect(page.locator('#detailChartValues')).toContainText('50%');await page.locator('#detailScope').selectOption('selected');await expect(page.locator('#detailChartValues tbody tr')).toHaveCount(1);await expect(page.locator('#detailChartValues')).toContainText('50%');
- await page.locator('#detailCategory').selectOption('20スロ');await expect(page.locator('#detailChartValues')).toContainText('25%');await page.locator('#detailTime').selectOption('average');await page.locator('#detailPeriod').selectOption('week');await expect(page.locator('#detailChartContext')).toContainText('週間');await expect(page.locator('#detailChartContext')).toContainText('11・15・19時平均');
+ await page.locator('#detailCategory').selectOption('20S');await expect(page.locator('#detailChartValues')).toContainText('25%');await page.locator('#detailTime').selectOption('average');await page.locator('#detailPeriod').selectOption('week');await expect(page.locator('#detailChartContext')).toContainText('週間');await expect(page.locator('#detailChartContext')).toContainText('11・15・19時平均');
  await page.locator('#detailCustomers').click({position:{x:150,y:100}});await expect(page.locator('#detailCustomers').locator('..').getByRole('status')).toContainText('イーグル');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
  await page.locator('[data-tab="summary"]').click();await expect(page.locator('#detailCharts')).toBeHidden();
 });
@@ -260,7 +260,7 @@ test('初期設定は3回平均と7月4日で月間の前月差を色分けす�
  const summaries=[],records=[],specials=[];
  for(const date of ['2026-08-01','2026-09-01'])for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','競合店']){const own=store.startsWith('イーグル'),customers=date.includes('-08-')?10:own?20:5;summaries.push({date,time,store,storeTotal:100,customers,util:customers});records.push({date,time,store,rate:'2.5円P',machines:100,customers,util:customers});specials.push({date,time,store,group:'スマスロ',machines:100,customers,util:customers});}
  await page.goto('http://127.0.0.1:3102/');await expect(page.locator('#latestTime')).toHaveValue('average');await expect(page.locator('#time')).toHaveValue('');
- await page.locator('#restoreFile').setInputFiles({name:'monthly.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records,specials}))});await expect(page.locator('#from')).toHaveValue('2026-07-04');await expect(page.locator('#to')).toHaveValue('2026-09-01');await expect(page.locator('#rateCompare')).toContainText('2.5P');
+ await page.locator('#restoreFile').setInputFiles({name:'monthly.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records,specials}))});await expect(page.locator('#from')).toHaveValue('2026-07-04');await expect(page.locator('#to')).toHaveValue('2026-09-01');await expect(page.locator('#rateCompare')).toContainText('2.5円P');
  await page.locator('[data-tab="specials"]').click();await page.locator('#detailPeriod').selectOption('month');await page.locator('#detailFrom').fill('2026-09-01');
  const own=page.locator('#detailChartValues tbody td[data-store="イーグル スクエア帯広店"]'),other=page.locator('#detailChartValues tbody td[data-store="競合店"]');await expect(own).toContainText('+10名');await expect(own).toContainText('+30pt');await expect(own.locator('span').first()).toHaveCSS('color','rgb(23, 32, 51)');await expect(other).toContainText('-5名');await expect(other.locator('span').first()).toHaveCSS('color','rgb(193, 61, 61)');
 });
@@ -275,4 +275,12 @@ test('店舗を横列に並べその直下に指定期間の平均値を表示�
 test('下の全タブに縦並び店舗一覧を残さない',async({page})=>{
  await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();await page.locator('#summaryScope').selectOption('all');await expect(page.locator('#tableWrap thead tr').first()).toContainText('競合店');await expect(page.locator('#tableWrap .period-average')).toContainText('指定期間の平均');
  for(const tab of ['records','specials']){await page.locator(`[data-tab="${tab}"]`).click();await expect(page.locator('#tableWrap')).toBeHidden();await expect(page.locator('#detailChartValues .store-matrix')).toBeVisible();await expect(page.locator('#detailChartValues .period-average')).toContainText('指定期間の平均');}
+});
+
+test('店舗表は実貸玉表記でカテゴリーは11.25Sと21.74Sを20Sに統合する',async({page})=>{
+ const records=[],summaries=[];
+ for(const time of [11,15,19])for(const [store,rate,customers] of [['イーグル スクエア帯広店','11.25円S',10],['競合店','21.74円S',30]]){records.push({date:'2026-10-08',time,store,rate,machines:100,customers,util:customers});summaries.push({date:'2026-10-08',time,store,storeTotal:100,customers,util:customers});}
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'rates.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({records,summaries,specials:[]}))});
+ await expect(page.locator('#rateCompare')).toContainText('11.25円S');await expect(page.locator('#rate option')).toHaveText(['すべて','20S']);await page.locator('#rate').selectOption('20S');await expect(page.locator('#ranking tbody tr')).toHaveCount(2);await expect(page.locator('#ranking')).toContainText('75%');
+ await page.locator('#store').selectOption('競合店');await expect(page.locator('#rateCompare')).toContainText('21.74円S');await expect(page.locator('#rateCompare')).not.toContainText('11.25円S');
 });

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {comparisonDate,compareRows,mergeRows,rangeTrendRows} from '../public/analysis.js';
+import {comparisonDate,compareRows,mergeRows,rangeTrendRows,rateCategory} from '../public/analysis.js';
 test('東京時間でも日付をずらさず前日・前週・4週前',()=>{
  assert.equal(comparisonDate('2026-10-06','1'),'2026-10-05');assert.equal(comparisonDate('2026-10-06','7'),'2026-09-29');assert.equal(comparisonDate('2026-10-06','28'),'2026-09-08');
 });
@@ -79,9 +79,9 @@ test('完全な暦月は日数が違っても平均を比較し、自店の欠�
 test('平均の未取得店舗だけなら市場全体も未取得でありゼロではない',async()=>{
  const {marketSnapshot}=await import('../public/analysis.js');assert.equal(marketSnapshot([{store:'A',customers:null,share:null,complete:false}],[],'A').total,null);
 });
-test('0.25Pと0.56Pは0.56P、11.24Sは20スロに集約する',async()=>{
+test('0.25Pと0.56Pは0.56P、11.24Sは20Sに集約する',async()=>{
  const {rateCategory}=await import('../public/analysis.js');
- for(const rate of ['0.25P','0.25円P','0.56円P'])assert.equal(rateCategory(rate),'0.56P');assert.equal(rateCategory('11.24S'),'20スロ');
+ for(const rate of ['0.25P','0.25円P','0.56円P'])assert.equal(rateCategory(rate),'0.56P');assert.equal(rateCategory('11.24S'),'20S');
 });
 test('比較日を自由に指定し空欄・不正日付は比較なし',()=>{
  assert.equal(comparisonDate('2026-10-06','custom','2026-09-01'),'2026-09-01');assert.equal(comparisonDate('2026-10-06','custom','2026-02-30'),null);assert.equal(comparisonDate('2026-10-06','custom',''),null);
@@ -91,4 +91,8 @@ test('指定期間の平均は取得日のみを集計しシェアを客数か�
  const rows=[{date:'2026-10-01',time:11,store:'A',customers:10,util:10},{date:'2026-10-03',time:11,store:'A',customers:30,util:30},{date:'2026-10-01',time:11,store:'B',customers:60,util:60}];
  const result=rangeTrendRows(rows,'2026-10-01','2026-10-04');assert.equal(result[0].customers,20);assert.equal(result[0].days,2);assert.equal(result[0].share,40);assert.equal(result[0].marketTotal,50);assert.equal(result[1].customers,60);
  assert.deepEqual(rangeTrendRows(rows,'2026-10-04','2026-10-01'),[]);assert.deepEqual(rangeTrendRows(rows,'2026-02-30','2026-10-01'),[]);
+});
+
+test('11.25Sと21.73Sと21.74Sも20Sへ分類する',()=>{
+ for(const rate of ['11.24S','11.25円S','12.5S','20S','21.73円S','21.74S'])assert.equal(rateCategory(rate),'20S');
 });
