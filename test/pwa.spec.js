@@ -7,7 +7,7 @@ test('スマホ起動・同期・総合一覧・貸玉比較・CSV・オフラ�
  await page.goto('/');await page.locator('#latestTime').selectOption('11');await page.locator('details').filter({has:page.locator('#connectionMode')}).locator('summary').click();await page.locator('#connectionMode').selectOption('server');await expect(page.locator('#syncBtn')).toBeVisible();
  await page.locator('#syncBtn').click();await expect(page.locator('#kLatest')).toHaveText('129');
  await expect(page.locator('#syncStatus')).toContainText('新規');await expect(page.locator('#tableWrap')).toContainText('129');
- await page.locator('[data-tab="records"]').click();await page.locator('#store').selectOption('');await expect(page.locator('#tableWrap')).toContainText('7.5円S');
+ await page.locator('[data-tab="records"]').click();await page.locator('#store').selectOption('');await page.locator('#detailCategory').selectOption('7.5円S');await expect(page.locator('#detailChartContext')).toContainText('7.5円S');
  const download=page.waitForEvent('download');await page.locator('#csvBtn').click();expect((await download).suggestedFilename()).toContain('records');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
  await page.evaluate(()=>navigator.serviceWorker.ready);await page.reload();await page.locator('#latestTime').selectOption('11');
@@ -76,7 +76,7 @@ test('12.5円Sを20スロカテゴリーとして表示する',async({page})=>{
  await page.locator('#rate').selectOption({label:'20スロ'});
  await expect(page.locator('#chartStores')).toContainText('イーグル');
  await page.locator('[data-tab="records"]').click();
- await expect(page.locator('#tableWrap')).toContainText('34');
+ await page.locator('#detailCategory').selectOption('20スロ');await expect(page.locator('#detailChartValues')).toContainText('34');
 });
 test('機種別の全店シェアと勝っている店舗のイベントを表示・再取込で補完',async({page})=>{
  const report=text.replace('スマスロ【30台】 10名 33%','ジャグラー【30台】 6名20%\n4.5 9時開店 来店ポイント交換会').replace('総合計12名 12%','総合計212名 21%\n客数シェア 30%\nジャグラー【60台】 18名30%\n新台入替');
@@ -187,8 +187,8 @@ test('店舗総合を全店舗の日別3回平均で表示しCSVにも反映す�
  const reports=[text,text.replaceAll('2026/10/06 11時','2026/10/06 15時').replace('総合計129名','総合計159名'),text.replaceAll('2026/10/06 11時','2026/10/06 19時').replace('総合計129名','総合計189名'),text.replaceAll('2026/10/06','2026/10/07')].join('\n');
  await page.goto('http://127.0.0.1:3102/');await page.locator('#latestTime').selectOption('11');await page.locator('#mailText').fill(reports);await page.locator('#pasteImportBtn').click();
  await page.locator('#summaryAggregation').selectOption('average');await page.locator('#summaryScope').selectOption('all');
- const rows=page.locator('#tableWrap tbody tr');await expect(rows).toHaveCount(4);await expect(rows.filter({hasText:'2026-10-06'}).filter({hasText:'イーグル'})).toContainText('159');await expect(rows.filter({hasText:'2026-10-06'}).filter({hasText:'競合店'})).toContainText('12');await expect(rows.filter({hasText:'2026-10-07'}).first()).toContainText('未取得');
- await page.locator('#time').selectOption('15');await expect(rows).toHaveCount(4);
+ const rows=page.locator('#tableWrap tbody tr');await expect(rows).toHaveCount(2);await expect(rows.filter({hasText:'2026-10-06'}).locator('td[data-store="イーグル スクエア帯広店"]')).toContainText('159');await expect(rows.filter({hasText:'2026-10-06'}).locator('td[data-store="競合店"]')).toContainText('12');await expect(rows.filter({hasText:'2026-10-07'}).first()).toContainText('未取得');
+ await page.locator('#time').selectOption('15');await expect(rows).toHaveCount(2);
  const pending=page.waitForEvent('download');await page.locator('#csvBtn').click();const download=await pending;const csv=readFileSync(await download.path(),'utf8');expect(csv).toContain('1日平均');expect(csv).toContain('競合店');
  await page.locator('#summaryScope').selectOption('selected');await expect(rows).toHaveCount(2);await page.locator('#summaryAggregation').selectOption('time');await expect(rows).toHaveCount(1);await expect(rows.first()).toContainText('15時');
 });
@@ -270,4 +270,9 @@ test('店舗を横列に並べその直下に指定期間の平均値を表示�
  for(const date of ['2026-09-01','2026-09-02'])for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','競合店']){const customers=store==='競合店'?30:date.endsWith('01')?10:20;summaries.push({date,time,store,customers,util:customers,storeTotal:100});specials.push({date,time,store,group:'スマスロ',customers,util:customers,machines:100});}
  await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'matrix.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records:[],specials}))});await page.locator('[data-tab="specials"]').click();
  await expect(page.locator('#detailChartValues thead tr').first()).toContainText('イーグル');await expect(page.locator('#detailChartValues thead tr').first()).toContainText('競合店');const own=page.locator('#detailChartValues .period-average td[data-store="イーグル スクエア帯広店"]');await expect(own).toContainText('15名');await expect(own).toContainText('33.3%');await expect(own).toContainText('15%');await expect(own).toContainText('取得 2日');await expect(page.locator('#detailChartValues tbody tr')).toHaveCount(2);
+});
+
+test('下の全タブに縦並び店舗一覧を残さない',async({page})=>{
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#mailText').fill(text);await page.locator('#pasteImportBtn').click();await page.locator('#summaryScope').selectOption('all');await expect(page.locator('#tableWrap thead tr').first()).toContainText('競合店');await expect(page.locator('#tableWrap .period-average')).toContainText('指定期間の平均');
+ for(const tab of ['records','specials']){await page.locator(`[data-tab="${tab}"]`).click();await expect(page.locator('#tableWrap')).toBeHidden();await expect(page.locator('#detailChartValues .store-matrix')).toBeVisible();await expect(page.locator('#detailChartValues .period-average')).toContainText('指定期間の平均');}
 });

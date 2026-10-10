@@ -138,10 +138,14 @@ function detailRows(type){
 function renderTable(){
   $('summaryControls').hidden=S.tab!=='summary';
   renderDetailCharts();
-  const type=S.tab,rows=detailRows(type),data=rows.slice(0,1000);let h='';
-  if(type==='records')h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>貸玉</th><th>台数</th><th>男性</th><th>女性</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${esc(r.rate)}</td><td>${r.machines}</td><td>${r.male}</td><td>${r.female}</td><td><b>${r.customers}</b></td><td>${r.util}%</td><td>${r.share}%</td></tr>`).join('')+'</tbody></table>';
-  else if(type==='summary')h='<table><thead><tr><th>日付</th><th>時間・集計</th><th>店舗</th><th>総台数</th><th>客数</th><th>稼働率</th><th>シェア</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time==='1日平均'?'1日平均（11・15・19時）':r.time+'時'}</td><td>${esc(r.store)}</td><td>${r.storeTotal??'未取得'}</td><td><b>${r.customers??'未取得'}</b></td><td>${r.util==null?'未取得':r.util+'%'}</td><td>${r.share==null?'未取得':r.share+'%'}</td></tr>`).join('')+'</tbody></table>';
-  else h='<table><thead><tr><th>日付</th><th>時間</th><th>店舗</th><th>機種群</th><th>台数</th><th>客数</th><th>稼働率</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${r.date}</td><td>${r.time}時</td><td>${esc(r.store)}</td><td>${esc(r.group)}</td><td>${r.machines}</td><td><b>${r.customers}</b></td><td>${r.util}%</td></tr>`).join('')+'</tbody></table>';$('tableWrap').innerHTML=h||'<div class="msg">該当データなし</div>'
+  if(S.tab!=='summary'){$('tableWrap').hidden=true;return;}
+  $('tableWrap').hidden=false;
+  const data=detailRows('summary'),stores=uniq(data.map(r=>r.store)),keys=uniq(data.map(r=>JSON.stringify([r.date,r.time])));
+  const source=$('summaryAggregation').value==='average'||!$('time').value?averageTrendRows(S):trendRows(S,{time:Number($('time').value)});
+  const totals=selectedRange(source),val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
+  const metrics=r=>r?`客数 <b>${val(r.customers,'名')}</b><br>シェア ${val(r.share,'%')}<br>稼働率 ${val(r.util,'%')}<br>総台数 ${val(r.storeTotal,'台')}`:'未取得';
+  $('tableWrap').innerHTML='<table class="store-matrix"><thead><tr><th>日付・集計</th>'+stores.map(store=>`<th>${esc(store)}</th>`).join('')+'</tr><tr class="period-average"><td><b>指定期間の平均</b><br>'+esc($('from').value)+'〜'+esc($('to').value)+'</td>'+stores.map(store=>`<td data-store="${esc(store)}">${metrics(totals.find(r=>r.store===store))}</td>`).join('')+'</tr></thead><tbody>'+keys.slice(0,1000).map(key=>{const [date,time]=JSON.parse(key);return `<tr><td>${date}<br>${time==='1日平均'?'1日平均（11・15・19時）':time+'時'}</td>`+stores.map(store=>`<td data-store="${esc(store)}">${metrics(data.find(r=>r.date===date&&r.time===time&&r.store===store))}</td>`).join('')+'</tr>';}).join('')+'</tbody></table>';
+
 }
 let detailAutoRange=true,detailSelectedDate='';
 const detailCategories={records:'',specials:''};
