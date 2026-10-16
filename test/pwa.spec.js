@@ -393,3 +393,25 @@ test('月平均で客数が増えた店を一覧上のランキングと店舗�
  await page.locator('#summaryAggregation').selectOption('average');await expect(panel).toBeHidden();await page.locator('#summaryAggregation').selectOption('month');await expect(panel).toBeVisible();await page.locator('[data-tab="specials"]').click();await expect(panel).toBeHidden();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
+
+test('客数増加店舗に上昇した貸玉種別の客数差と種別内シェア差を示す',async({page})=>{
+ const summaries=[],records=[];for(const [date,counts] of [['2026-09-01',[10,10,20,80]],['2026-10-15',[20,40,10,10]]])for(const time of [11,15,19]){
+  for(const [i,[store,rate]] of [['ひまわり帯広店','21.74円S'],['イーグル スクエア帯広店','12.5円S'],['ひまわり帯広店','1.12円P'],['イーグル スクエア帯広店','1円P']].entries())records.push({date,time,store,rate,customers:counts[i],machines:100});
+  summaries.push({date,time,store:'ひまわり帯広店',customers:date.includes('-09-')?30:40,storeTotal:200},{date,time,store:'イーグル スクエア帯広店',customers:date.includes('-09-')?90:50,storeTotal:200});
+ }
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'rate-growth.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records,specials:[]}))});await page.locator('#summaryAggregation').selectOption('month');
+ const store=page.locator('#monthlyCustomerGrowth [data-growth-store="ひまわり帯広店"]'),slot=store.locator('[data-growth-category="20S"]'),p=store.locator('[data-growth-category="1パチ"]');
+ await expect(slot).toContainText('21.74円S');await expect(slot).toContainText('客数上昇');await expect(slot).toContainText('客数 20名（前月比 +10名）');await expect(slot).toContainText('シェア 33.3%（前月比 -16.7pt）');await expect(p).toContainText('シェア上昇');await expect(p).toContainText('客数 10名（前月比 -10名）');await expect(p).toContainText('シェア 50%（前月比 +30pt）');
+ const cell=page.locator('#tableWrap tbody tr').last().locator('td[data-store="ひまわり帯広店"]');await expect(cell.locator('[data-growth-category="20S"]')).toContainText('+10名');await page.locator('#summaryScope').selectOption('selected');await page.locator('#store').selectOption('ひまわり帯広店');await expect(slot).toContainText('33.3%');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+});
+
+test('最新月の客数相関を正負で切り替え相関店舗の客数シェアと種別を表示する',async({page})=>{
+ const summaries=[],records=[];for(const [i,date] of ['2026-10-01','2026-10-02','2026-10-03','2026-10-04'].entries())for(const time of [11,15,19])for(const [store,customers] of [['イーグル スクエア帯広店',[10,20,30,40][i]],['連動店',[20,40,60,80][i]],['逆行店',[40,30,20,10][i]]]){
+  const row={date,time,store,customers,storeTotal:100};summaries.push(row);records.push({...row,rate:store.startsWith('イーグル')?'12.5円S':'21.74円S',machines:100});
+ }
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'correlation.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records,specials:[]}))});await page.locator('#summaryAggregation').selectOption('month');
+ const panel=page.locator('#storeCorrelation'),all=panel.locator('[data-correlation-category="店舗全体"]');await expect(panel).toBeVisible();await expect(all).toContainText('連動店');await expect(all).toContainText('+1.000');await expect(all).toContainText('平均客数 50名');await expect(all).toContainText('シェア 50%');await expect(all).toContainText('4日');await expect(panel.locator('[data-correlation-category="20S"]')).toContainText('21.74円S');
+ await page.locator('#correlationDirection').selectOption('negative');await expect(all).toContainText('逆行店');await expect(all).toContainText('-1.000');await expect(all).toContainText('平均客数 25名');await expect(all).toContainText('シェア 25%');
+ await page.locator('#store').selectOption('連動店');await expect(all).toContainText('逆行店');await expect(panel).toContainText('帯広店');await page.locator('#summaryAggregation').selectOption('average');await expect(panel).toBeHidden();
+});

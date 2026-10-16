@@ -194,3 +194,34 @@ test('月の客数増加ランキングは最新月の前月差を並べ同率�
  assert.equal(result.gainers[0].changePercent,30);assert.equal(result.gainers[0].previousCustomers,100);
  assert.equal(monthlyCustomerGrowth([{date:'2026-10-01',store:'X',customers:2}],[]).comparedStores,0);
 });
+
+test('月ごとの種別増減は種別内の全店舗からシェアを計算し客数と別に比較する',async()=>{
+ const {monthlyRateChanges}=await import('../public/analysis.js');const records=[];
+ for(const [date,counts] of [['2026-09-01',[10,10,20,80]],['2026-10-15',[20,40,10,10]]])for(const time of [11,15,19])for(const [i,[store,rate]] of [['A','12.5円S'],['B','21.74円S'],['A','1.12円P'],['B','1円P']].entries())records.push({date,time,store,rate,customers:counts[i],machines:100});
+ for(const time of [11,15,19])records.push({date:'2026-10-15',time,store:'A',rate:'6.25円S',customers:4,machines:10});
+ const rows=monthlyRateChanges({records},{from:'2026-10-01',to:'2026-10-15'});
+ const slot=rows.find(r=>r.store==='A'&&r.category==='20S'),p=rows.find(r=>r.store==='A'&&r.category==='1パチ');
+ assert.equal(slot.customerDelta,10);assert.equal(slot.shareDelta,-16.7);assert.equal(slot.customerUp,true);assert.equal(slot.shareUp,false);assert.deepEqual(slot.rates,['12.5円S']);assert.equal(slot.previousDate,'2026-09-01');
+ assert.equal(p.customerDelta,-10);assert.equal(p.shareDelta,30);assert.equal(p.shareUp,true);assert.equal(p.customerUp,false);
+ const missing=rows.find(r=>r.category==='5スロ');assert.equal(missing.customerDelta,null);assert.equal(missing.shareDelta,null);assert.equal(missing.customerUp,false);
+});
+
+test('店舗相関は同日客数で正負を比較し種別内の市場シェアと客数を返す',async()=>{
+ const {storeCustomerCorrelations}=await import('../public/analysis.js');const summaries=[],records=[];
+ for(const [i,date] of ['2026-10-01','2026-10-02','2026-10-03','2026-10-04'].entries())for(const time of [11,15,19])for(const [store,customers] of [['自店',[10,20,30,40][i]],['連動店',[20,40,60,80][i]],['逆行店',[40,30,20,10][i]],['一定店',5]]){
+  const row={date,time,store,customers,machines:100};summaries.push(row);records.push({...row,rate:store==='自店'?'12.5円S':'21.74円S'});
+ }
+ const positive=storeCustomerCorrelations({summaries,records},{target:'自店',from:'2026-10-01',to:'2026-10-04',direction:'positive'});
+ const all=positive.find(r=>r.category==='店舗全体');assert.equal(all.winner.store,'連動店');assert.equal(all.winner.coefficient,1);assert.equal(all.winner.days,4);assert.equal(all.winner.customers,50);assert.equal(all.winner.share,47.6);
+ assert.equal(positive.find(r=>r.category==='20S').winner.share,47.6);
+ const negative=storeCustomerCorrelations({summaries,records},{target:'自店',direction:'negative'});assert.equal(negative[0].winner.store,'逆行店');assert.equal(negative[0].winner.coefficient,-1);
+ assert.equal(storeCustomerCorrelations({summaries,records},{target:'自店',from:'2026-10-01',to:'2026-10-02'})[0].winner,null);
+});
+test('相関は欠測をゼロ埋めせず一致日のみを使い定数・比較日不足では算出しない',async()=>{
+ const {storeCustomerCorrelations}=await import('../public/analysis.js');const summaries=[];
+ for(const [i,date] of ['2026-10-01','2026-10-02','2026-10-03','2026-10-04'].entries())for(const time of [11,15,19]){
+  summaries.push({date,time,store:'自店',customers:(i+1)*10});if(i!==1)summaries.push({date,time,store:'競合',customers:(i+1)*20});
+ }
+ const winner=storeCustomerCorrelations({summaries},{target:'自店'})[0].winner;assert.equal(winner.days,3);assert.equal(winner.customers,53.3);assert.equal(winner.coefficient,1);
+ const constant=summaries.map(r=>({...r,customers:1}));assert.equal(storeCustomerCorrelations({summaries:constant},{target:'自店'})[0].winner,null);
+});

@@ -1,6 +1,6 @@
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
 import {decodeSurveyCsv,mergeCsvReport} from './csv-import.js';
-import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts,marketSizeComparison,monthlyCustomerGrowth} from './analysis.js';
+import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts,marketSizeComparison,monthlyCustomerGrowth,monthlyRateChanges,storeCustomerCorrelations} from './analysis.js';
 import {drawTrend} from './trend-chart.js';
 import {request} from './api-client.js';
 
@@ -170,8 +170,27 @@ function monthDelta(current,previous,date){
  const delta=compareRows(current,previous),value=(v,unit)=>v==null?'比較なし':`<span style="color:${v<0?'#c13d3d':'#172033'}">${v>0?'+':''}${v}${unit}</span>`;
  return `<br>前月 ${date?date.slice(0,7):'なし'}<br>客数差 ${value(delta.customers,'名')}<br>シェア差 ${value(delta.share,'pt')}<br>稼働率差 ${value(delta.util,'pt')}`;
 }
+function monthRateGrowth(store,date,rows){
+ const current=rows.filter(r=>r.store===store&&r.date===date),up=current.filter(r=>r.customerUp||r.shareUp).sort((a,b)=>(b.customerDelta||0)-(a.customerDelta||0));
+ const value=(n,unit)=>n==null?'未取得':n.toLocaleString('ja-JP')+unit;
+ const delta=(n,unit)=>n==null?'比較なし':`<span style="color:${n<0?'#c13d3d':'#172033'}">${n>0?'+':''}${n.toLocaleString('ja-JP')}${unit}</span>`;
+ if(!up.length)return `<div class="small monthly-rate-changes">${current.some(r=>r.customerDelta!=null||r.shareDelta!=null)?'前月比で上昇した種別はありません。':'種別の前月比較データなし'}</div>`;
+ return '<div class="monthly-rate-changes"><b>↑ 上昇した貸玉種別</b>'+up.map(r=>`<div class="monthly-rate-change" data-growth-category="${esc(r.category)}"><b>${esc(r.category)}（${esc(r.rates.join(' / '))}）</b><br><span class="growth-badge">${r.customerUp&&r.shareUp?'客数・シェア上昇':r.customerUp?'客数上昇':'シェア上昇'}</span><br>客数 ${value(r.customers,'名')}（前月比 ${delta(r.customerDelta,'名')}）<br>シェア ${value(r.share,'%')}（前月比 ${delta(r.shareDelta,'pt')}）</div>`).join('')+'</div>';
+}
+function renderStoreCorrelation({month,from,to,rateChanges}){
+ const direction=$('correlationDirection').value,results=storeCustomerCorrelations(S,{target:TARGET,from,to,direction});
+ const value=(n,unit)=>n==null?'未取得':n.toLocaleString('ja-JP')+unit;
+ $('storeCorrelation').hidden=false;
+ $('correlationContext').textContent=`帯広店を基準 / ${from}〜${to} / 11・15・19時の1日平均客数 / 全店舗から比較。相関係数rは+1に近いほど同じ動き、−1に近いほど逆の動きです。`;
+ $('correlationContent').innerHTML=results.map(result=>`<div class="monthly-rate-change" data-correlation-category="${esc(result.category)}"><b>${esc(result.category)}：${direction==='negative'?'逆の動き':'同じ動き'}の相関1位</b>${result.winner?result.tied.map(winner=>{
+  const detail=result.category==='店舗全体'?rateChanges.filter(r=>r.store===winner.store&&r.date===month):[];
+  return `<div style="margin-top:6px"><b>${esc(winner.store)}${result.tied.length>1?'（同率）':''}</b>${winner.rates.length?' / '+esc(winner.rates.join(' / ')):''}<br>相関係数 r=${winner.coefficient>0?'+':''}${winner.coefficient.toFixed(3)} / 同日比較 ${winner.days}日<br>平均客数 ${value(winner.customers,'名')} / シェア ${value(winner.share,'%')}${detail.length?'<div class="monthly-rate-changes"><b>相関1位店舗の種別内訳（対象月の平均）</b>'+detail.map(r=>`<div style="margin-top:6px"><b>${esc(r.category)}（${esc(r.rates.join(' / '))}）</b><br>客数 ${value(r.customers,'名')} / シェア ${value(r.share,'%')}</div>`).join('')+'</div>':''}</div>`;
+ }).join(''):'<p class="small">該当なし。同日のデータが3日以上あり、客数に変動がある店舗のうち、選択した方向の相関がある店舗を比較します。</p>'}</div>`).join('')+'<p class="small">相関1位の客数・シェアは同日比較に使えた日の平均・合計から計算。種別内訳は対象月の取得分の平均です。種別のシェアはその種別の全報告店舗の客数から計算します。</p>';
+}
+bindChange($('correlationDirection'),renderTable);
 function renderTable(){
   $('monthlyCustomerGrowth').hidden=true;
+  $('storeCorrelation').hidden=true;
   $('summaryControls').hidden=S.tab!=='summary';
   $('summaryHourField').hidden=$('summaryAggregation').value!=='time';
   renderDetailCharts();
@@ -180,10 +199,13 @@ function renderTable(){
   const data=detailRows('summary'),stores=uniq(data.map(r=>r.store)),keys=uniq(data.map(r=>JSON.stringify([r.date,r.time])));
   const source=$('summaryAggregation').value!=='time'?averageTrendRows(S):trendRows(S,{time:Number($('summaryHour').value)});
   const monthlyHistory=$('summaryAggregation').value==='month'?periodTrendRows(averageTrendRows(S),'month'):[];
+  const rateChanges=$('summaryAggregation').value==='month'?monthlyRateChanges(S,{from:$('from').value,to:$('to').value}):[];
   if($('summaryAggregation').value==='month'&&data.length){
    const growth=monthlyCustomerGrowth(data,monthlyHistory),number=v=>v.toLocaleString('ja-JP');
+   const bounds=periodBounds(growth.month,'month'),from=$('from').value>bounds.start?$('from').value:bounds.start,to=$('to').value&&$('to').value<bounds.end?$('to').value:bounds.end;
+   renderStoreCorrelation({month:growth.month,from,to,rateChanges});
    $('monthlyCustomerGrowth').hidden=false;
-   $('monthlyCustomerGrowth').innerHTML=`<b>★ ${esc(growth.month.slice(0,7))} 客数増加ランキング</b><p class="small">11・15・19時の1日平均 / 前月 ${esc(growth.previousMonth.slice(0,7))} の平均との比較<br>対象：${esc(growth.from)}〜${esc(growth.to)}${growth.partial?'（月の一部）':''}<br>比較できた ${growth.comparedStores}店舗 / 客数の増加人数が大きい順</p>`+(growth.gainers.length?growth.gainers.map(r=>`<div class="growth-entry" data-growth-store="${esc(r.store)}"><b>${r.rank}位 ${esc(r.store)}</b><br><strong>+${number(r.delta)}名</strong> ${r.changePercent==null?'（前月0名）':`（+${number(r.changePercent)}%）`}<br><span class="small">前月 ${number(r.previousCustomers)}名 → 対象月 ${number(r.customers)}名 / 対象月${r.days||0}日・前月${r.previousDays}日を集計</span></div>`).join(''):`<p>${growth.comparedStores?'前月より客数が増加した店舗はありません。':'前月の比較データがありません。'}</p>`);
+   $('monthlyCustomerGrowth').innerHTML=`<b>★ ${esc(growth.month.slice(0,7))} 客数増加ランキング</b><p class="small">11・15・19時の1日平均 / 前月 ${esc(growth.previousMonth.slice(0,7))} の平均との比較<br>対象：${esc(growth.from)}〜${esc(growth.to)}${growth.partial?'（月の一部）':''}<br>比較できた ${growth.comparedStores}店舗 / 客数の増加人数が大きい順<br>種別のシェアは、その種別の全報告店舗の客数から計算します。</p>`+(growth.gainers.length?growth.gainers.map(r=>`<div class="growth-entry" data-growth-store="${esc(r.store)}"><b>${r.rank}位 ${esc(r.store)}</b><br><strong>+${number(r.delta)}名</strong> ${r.changePercent==null?'（前月0名）':`（+${number(r.changePercent)}%）`}<br><span class="small">前月 ${number(r.previousCustomers)}名 → 対象月 ${number(r.customers)}名 / 対象月${r.days||0}日・前月${r.previousDays}日を集計</span>${monthRateGrowth(r.store,growth.month,rateChanges)}</div>`).join(''):`<p>${growth.comparedStores?'前月より客数が増加した店舗はありません。':'前月の比較データがありません。'}</p>`);
   }
   const totals=selectedRange(source),val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
   const metrics=r=>r?`客数 <b>${val(r.customers,'名')}</b><br>シェア ${val(r.share,'%')}<br>稼働率 ${val(r.util,'%')}<br>総台数 ${val(r.storeTotal,'台')}`:'未取得';
@@ -192,7 +214,7 @@ function renderTable(){
    const [date,time]=JSON.parse(key),prior=time==='月平均'?comparisonDate(date,'month'):null,label=time==='月平均'?date.slice(0,7)+' 月平均（11・15・19時）':date+'<br>'+(time==='1日平均'?'1日平均（11・15・19時）':time+'時');
    return `<tr><td>${label}</td>`+stores.map(store=>{
     const current=data.find(r=>r.date===date&&r.time===time&&r.store===store),previous=monthlyHistory.find(r=>r.date===prior&&r.store===store),increase=time==='月平均'?compareRows(current,previous).customers:null;
-    return `<td data-store="${esc(store)}"${increase>0?' class="growth-cell"':''}>${increase>0?`<span class="growth-badge">★ 客数増加 +${increase}名</span><br>`:''}${metrics(current)}${time==='月平均'?monthDelta(current,previous,prior):''}</td>`;
+    return `<td data-store="${esc(store)}"${increase>0?' class="growth-cell"':''}>${increase>0?`<span class="growth-badge">★ 客数増加 +${increase}名</span><br>`:''}${metrics(current)}${time==='月平均'?monthDelta(current,previous,prior)+monthRateGrowth(store,date,rateChanges):''}</td>`;
    }).join('')+'</tr>';
   }).join('')+'</tbody></table>';
 

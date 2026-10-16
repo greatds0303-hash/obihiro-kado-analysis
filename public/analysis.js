@@ -24,6 +24,40 @@ export function monthlyCustomerGrowth(rows,history){
  const dates=[...new Set(current.flatMap(r=>r.coverageDates||[r.date]))].sort(),from=dates[0]||month,to=dates.at(-1)||month;
  return {month,previousMonth,gainers,comparedStores:compared.length,from,to,partial:Boolean(month&&(from!==month||to!==periodBounds(month,'month').end))};
 }
+export function monthlyRateChanges(data,{from='',to=''}={}){
+ const records=data.records||[],categories=[...new Set(records.map(r=>rateCategory(r.rate)))],result=[];
+ for(const category of categories){
+  const categoryRecords=records.filter(r=>rateCategory(r.rate)===category);
+  const daily=averageTrendRows(data,{rate:category}),history=periodTrendRows(daily,'month');
+  const current=periodTrendRows(daily.filter(r=>(!from||r.date>=from)&&(!to||r.date<=to)),'month');
+  for(const row of current){
+   const previousDate=comparisonDate(row.date,'month'),previous=history.find(r=>r.date===previousDate&&r.store===row.store),delta=compareRows(row,previous);
+   const rates=[...new Set(categoryRecords.filter(r=>r.store===row.store&&r.date>=row.date&&r.date<=row.periodEnd&&(!from||r.date>=from)&&(!to||r.date<=to)).map(r=>r.rate))].sort();
+   result.push({...row,category,rates,previousDate,previousCustomers:previous?.customers??null,previousShare:previous?.share??null,customerDelta:delta.customers,shareDelta:delta.share,customerUp:delta.customers>0,shareUp:delta.share>0});
+  }
+ }
+ return result;
+}
+export function storeCustomerCorrelations(data,{target,from='',to='',direction='positive'}={}){
+ const categories=['店舗全体',...[...new Set((data.records||[]).map(r=>rateCategory(r.rate)))].sort()];
+ return categories.map(category=>{
+  const rows=averageTrendRows(data,{from,to,...(category==='店舗全体'?{}:{rate:category})}).filter(r=>Number.isFinite(r.customers));
+  const own=new Map(rows.filter(r=>r.store===target).map(r=>[r.date,r.customers])),stores=[...new Set(rows.map(r=>r.store))].filter(s=>s!==target),candidates=[];
+  for(const store of stores){
+   const paired=rows.filter(r=>r.store===store&&own.has(r.date));if(paired.length<3)continue;
+   const x=paired.map(r=>own.get(r.date)),y=paired.map(r=>r.customers),mx=x.reduce((a,b)=>a+b,0)/x.length,my=y.reduce((a,b)=>a+b,0)/y.length;
+   let xx=0,yy=0,xy=0;for(let i=0;i<x.length;i++){xx+=(x[i]-mx)**2;yy+=(y[i]-my)**2;xy+=(x[i]-mx)*(y[i]-my);}
+   if(xx===0||yy===0)continue;
+   const coefficient=Math.max(-1,Math.min(1,xy/Math.sqrt(xx*yy)));if(direction==='negative'?coefficient>=-1e-12:coefficient<=1e-12)continue;
+   const dates=paired.map(r=>r.date).sort(),matched=new Set(dates),market=rows.filter(r=>matched.has(r.date)).reduce((sum,r)=>sum+r.customers,0),sum=y.reduce((a,b)=>a+b,0);
+   const rates=category==='店舗全体'?[]:[...new Set((data.records||[]).filter(r=>r.store===store&&matched.has(r.date)&&rateCategory(r.rate)===category).map(r=>r.rate))].sort();
+   candidates.push({store,coefficient,days:paired.length,dates,customers:Math.round(my*10)/10,share:market>0?Math.round(sum/market*1000)/10:null,rates});
+  }
+  candidates.sort((a,b)=>(direction==='negative'?a.coefficient-b.coefficient:b.coefficient-a.coefficient)||b.days-a.days||a.store.localeCompare(b.store,'ja'));
+  const winner=candidates[0]||null,tied=winner?candidates.filter(r=>Math.abs(r.coefficient-winner.coefficient)<1e-12):[];
+  return {category,winner,tied,comparedStores:candidates.length};
+ });
+}
 export function mergeRows(local,incoming,kind){
  const key=r=>JSON.stringify([r.date,r.time,r.store,kind==='records'?r.rate:kind==='specials'?r.group:'']);
  const rows=new Map();for(const r of [...local,...incoming])rows.set(key(r),r);
