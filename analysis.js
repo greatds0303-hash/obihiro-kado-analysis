@@ -162,6 +162,7 @@ export function shareDeclineAlerts(data,{target,time='average'}={}){
  if(!latest)return {latest:null,dates:[],alerts:[],unavailable:[],checked:0};
  const yesterday=comparisonDate(latest,'1'),dates=[comparisonDate(yesterday,'1'),yesterday,latest],hours=time==='average'?[11,15,19]:[Number(time)],alerts=[],unavailable=[];
  const categories=[...new Set((data.records||[]).filter(r=>r.store===target).map(r=>rateCategory(r.rate)))].map(name=>({kind:'貸玉種別',name,filters:{rate:name}}));
+ const monitoredGroups=new Set((data.specials||[]).filter(r=>r.store===target&&r.dataSource!=='csv').map(r=>r.group));
  const groups=[...new Set((data.specials||[]).filter(r=>r.store===target).map(r=>r.group))].map(name=>({kind:'機種群',name,filters:{group:name}}));
  const recentRates=new Map(),recentGroups=new Map();
  for(const [rows,index,name] of [[data.records||[],recentRates,r=>rateCategory(r.rate)],[data.specials||[],recentGroups,r=>r.group]])for(const row of rows){
@@ -177,8 +178,13 @@ export function shareDeclineAlerts(data,{target,time='average'}={}){
   if(!cohorts.every(value=>value===cohorts[0])){unavailable.push({...item,reason:'日ごとに報告店舗が異なる'});continue;}
   const shares=dates.map(date=>samples.reduce((sum,rows)=>sum+rows.find(r=>r.date===date&&r.store===target).share,0)/hours.length).map(v=>Math.round(v*10)/10);
   checked++;
-  if(shares[0]>shares[1]&&shares[1]>shares[2])alerts.push({kind:item.kind,name:item.name,dates,shares,drop:Math.round((shares[0]-shares[2])*10)/10});
+  const means=dates.map(date=>samples.reduce((sum,rows)=>sum+rows.find(r=>r.date===date&&r.store===target).customers,0)/hours.length);
+  const shareDeclining=shares[0]>shares[1]&&shares[1]>shares[2],customerDeclining=item.kind==='機種群'&&monitoredGroups.has(item.name)&&means[0]>means[1]&&means[1]>means[2];
+  if(shareDeclining||customerDeclining){
+   const customers=means.map(v=>Math.round(v*10)/10),customerChange=Math.round((means[2]-means[0])*10)/10;
+   alerts.push({kind:item.kind,name:item.name,dates,shares,customers,customerChange,shareDeclining,customerDeclining,drop:Math.round((shares[0]-shares[2])*10)/10});
+  }
  }
- alerts.sort((a,b)=>b.drop-a.drop||a.name.localeCompare(b.name,'ja'));
+ alerts.sort((a,b)=>Number(b.shareDeclining)-Number(a.shareDeclining)||(a.shareDeclining?b.drop-a.drop:a.customerChange-b.customerChange)||a.name.localeCompare(b.name,'ja'));
  return {latest,dates,alerts,unavailable,checked};
 }
