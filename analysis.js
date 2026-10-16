@@ -15,6 +15,15 @@ export function compareRows(current,previous){
  const delta=key=>current?.[key]!=null&&previous?.[key]!=null?Math.round((current[key]-previous[key])*10)/10:null;
  return {customers:delta('customers'),util:delta('util'),share:delta('share')};
 }
+export function monthlyCustomerGrowth(rows,history){
+ const month=rows.map(r=>r.date).sort().at(-1)||null,previousMonth=month?comparisonDate(month,'month'):null;
+ const current=rows.filter(r=>r.date===month),prior=new Map(history.filter(r=>r.date===previousMonth).map(r=>[r.store,r]));
+ const compared=current.filter(r=>Number.isFinite(r.customers)&&Number.isFinite(prior.get(r.store)?.customers));
+ const gainers=compared.map(r=>{const p=prior.get(r.store);return {...r,previousCustomers:p.customers,previousDays:p.days||0,delta:compareRows(r,p).customers,changePercent:p.customers>0?Math.round((r.customers/p.customers-1)*1000)/10:null};}).filter(r=>r.delta>0).sort((a,b)=>b.delta-a.delta);
+ let rank=0,previousDelta=null;gainers.forEach((r,i)=>{if(r.delta!==previousDelta){rank=i+1;previousDelta=r.delta;}r.rank=rank;});
+ const dates=[...new Set(current.flatMap(r=>r.coverageDates||[r.date]))].sort(),from=dates[0]||month,to=dates.at(-1)||month;
+ return {month,previousMonth,gainers,comparedStores:compared.length,from,to,partial:Boolean(month&&(from!==month||to!==periodBounds(month,'month').end))};
+}
 export function mergeRows(local,incoming,kind){
  const key=r=>JSON.stringify([r.date,r.time,r.store,kind==='records'?r.rate:kind==='specials'?r.group:'']);
  const rows=new Map();for(const r of [...local,...incoming])rows.set(key(r),r);
