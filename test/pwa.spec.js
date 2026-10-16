@@ -289,8 +289,8 @@ test('帯広店の貸玉と機種の連続低下を起動・取込時に通知�
  const records=[],specials=[],summaries=[];
  for(const [i,date] of ['2026-10-06','2026-10-07','2026-10-08'].entries())for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','競合店']){const customers=store.startsWith('イーグル')?30-i*10:70+i*10,row={date,time,store,customers,util:customers,machines:100};records.push({...row,rate:'11.25円S'});specials.push({...row,group:'ジャグラー'});summaries.push({...row,storeTotal:100});}
  const backup={records,specials,summaries};await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'alerts.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});
- await expect(page.locator('#shareAlertContent')).toContainText('危険：貸玉種別 20S');await expect(page.locator('#shareAlertContent')).toContainText('危険：機種群 ジャグラー');await expect(page.locator('#shareAlertContent')).toContainText('−20pt');await expect(page.locator('#shareAlertContent')).toContainText('30%');
- await page.locator('#store').selectOption('競合店');await page.locator('#from').fill('2026-10-08');await expect(page.locator('#shareAlertContent')).toContainText('危険：貸玉種別 20S');await page.locator('#alertTime').selectOption('15');await expect(page.locator('#shareAlertContent')).toContainText('危険：機種群 ジャグラー');
+ await expect(page.locator('#shareAlertContent')).toContainText('危険：貸玉種別 20S');await expect(page.locator('#shareAlertContent')).toContainText('危険：機種群 ジャグラー');await expect(page.locator('#shareAlertContent')).toContainText('−20pt');await expect(page.locator('#shareAlertContent')).toContainText('30%');await expect(page.locator('#shareAlertContent')).toContainText('30人 → 10人（20人減）');await expect(page.locator('#shareAlertContent')).toContainText('2026-10-07：20% / 20人');await expect(page.locator('#shareAlertContent')).toContainText('客数（11・15・19時平均）');
+ await page.locator('#store').selectOption('競合店');await page.locator('#from').fill('2026-10-08');await expect(page.locator('#shareAlertContent')).toContainText('危険：貸玉種別 20S');await page.locator('#alertTime').selectOption('15');await expect(page.locator('#shareAlertContent')).toContainText('危険：機種群 ジャグラー');await expect(page.locator('#shareAlertContent')).toContainText('客数（15時）');
  await page.reload();await expect(page.locator('#shareAlertContent')).toContainText('危険：貸玉種別 20S');
  backup.records=records.filter(r=>!(r.date==='2026-10-07'&&r.time===15&&r.store.startsWith('イーグル')));await page.locator('#restoreFile').setInputFiles({name:'missing.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});await expect(page.locator('#shareAlertContent')).not.toContainText('危険：貸玉種別');await expect(page.locator('#shareAlertContent')).toContainText('判定できないカテゴリー 1件');
 });
@@ -369,4 +369,17 @@ test('CSVをスマホで取り込み機種と貸玉・市場客数を表示し�
  await page.evaluate(()=>navigator.serviceWorker.ready);await page.reload();await context.setOffline(true);await page.reload();await expect(page.locator('#kLatest')).toHaveText('7');
  await page.locator('#file').setInputFiles({name:'broken.csv',mimeType:'text/csv',buffer:Buffer.from(csv+'\nイーグル スクエア帯広店,2026/08/02,パチンコ,2.500,1,機種A,5,abc,3,2')});await expect(page.locator('#status')).toContainText('失敗');await expect(page.locator('#kRecords')).toHaveText('9');
  await context.setOffline(false);
+});
+
+test('注目機種群の客数だけが減った場合も通知し時間変更と客数増減を正しく表示する',async({page})=>{
+ const summaries=[],specials=[];
+ for(const [i,date] of ['2026-10-06','2026-10-07','2026-10-08'].entries())for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','競合店']){
+  const own=store.startsWith('イーグル');const row={date,time,store,customers:own?[30,20,10][i]:[70,30,10][i],machines:100};specials.push({...row,group:'ジャグラー'});summaries.push({...row,storeTotal:100});
+ }
+ await page.goto('http://127.0.0.1:3102/');const restore=()=>page.locator('#restoreFile').setInputFiles({name:'customer-alert.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records:[],specials}))});
+ await restore();await expect(page.locator('#shareAlertContent')).toContainText('危険：機種群 ジャグラー');await expect(page.locator('#shareAlertContent')).toContainText('3日間で客数連続減少');await expect(page.locator('#shareAlertContent')).toContainText('30人 → 10人（20人減）');await expect(page.locator('#shareAlertContent')).toContainText('50% / 10人');
+ for(const r of specials){const i=Number(r.date.slice(-2))-6;r.customers=r.store.startsWith('イーグル')?[10,20,30][i]:[10,40,90][i];}
+ await restore();await expect(page.locator('#shareAlertContent')).toContainText('10人 → 30人（20人増）');
+ for(const r of specials){const i=Number(r.date.slice(-2))-6;r.customers=r.store.startsWith('イーグル')?30:70+i*50;}
+ await restore();await expect(page.locator('#shareAlertContent')).toContainText('30人 → 30人（増減なし）');
 });

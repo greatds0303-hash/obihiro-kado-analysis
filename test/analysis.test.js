@@ -160,3 +160,26 @@ test('市場客数の前月比は店舗構成や取得日の不一致・前月�
  const missing=[...summaries.filter(r=>r.store==='A'),{date:'2026-09-02',time:11,store:'A',customers:10}];
  assert.equal(marketSizeComparison({summaries:missing},{from:'2026-09-01',to:'2026-09-02',time:11}).rows[0].delta,null);
 });
+
+test('危険アラートの客数は同じ3日・時間で集計し平均値と増減を返す',()=>{
+ const data=declineData();
+ for(const kind of ['records','specials'])for(const row of data[kind]){const day=Number(row.date.slice(-2))-6;row.customers=row.store==='自店'?({11:30,15:60,19:120}[row.time]-day*10):300-({11:30,15:60,19:120}[row.time]-day*10);}
+ const mean=shareDeclineAlerts(data,{target:'自店'}).alerts[0];assert.deepEqual(mean.customers,[70,60,50]);assert.equal(mean.customerChange,-20);
+ const evening=shareDeclineAlerts(data,{target:'自店',time:19}).alerts[0];assert.deepEqual(evening.customers,[120,110,100]);assert.equal(evening.customerChange,-20);
+});
+test('危険アラートはシェア低下でも客数増加・横ばいを減少と扱わない',()=>{
+ const data=declineData();
+ for(const row of data.records){const day=Number(row.date.slice(-2))-6;row.customers=row.store==='自店'?10+day*10:[10,40,90][day];}
+ for(const row of data.specials){const day=Number(row.date.slice(-2))-6;row.customers=row.store==='自店'?30:70+day*50;}
+ const result=shareDeclineAlerts(data,{target:'自店'});
+ assert.equal(result.alerts.find(r=>r.kind==='貸玉種別').customerChange,20);assert.equal(result.alerts.find(r=>r.kind==='機種群').customerChange,0);
+});
+
+test('注目機種群はシェア上昇でも客数が3日続けて減れば知らせCSV個別機種は客数単独判定しない',()=>{
+ const data=declineData();data.records=[];
+ for(const row of data.specials){const day=Number(row.date.slice(-2))-6;row.customers=row.store==='自店'?[30,20,10][day]:[70,30,10][day];}
+ data.specials.push(...data.specials.map(r=>({...r,group:'CSV個別機種',dataSource:'csv'})));
+ const result=shareDeclineAlerts(data,{target:'自店'});assert.equal(result.alerts.length,1);assert.equal(result.alerts[0].name,'ジャグラー');assert.equal(result.alerts[0].shareDeclining,false);assert.equal(result.alerts[0].customerDeclining,true);assert.deepEqual(result.alerts[0].customers,[30,20,10]);
+ for(const row of data.specials)if(row.group==='ジャグラー'&&row.store==='自店'&&row.date==='2026-10-07')row.customers=35;
+ assert.equal(shareDeclineAlerts(data,{target:'自店'}).alerts.length,0);
+});

@@ -84,7 +84,12 @@ function deltaHtml(value,unit){return `<span class="delta ${value>0?'pos':value<
 function renderShareAlerts(){
  const result=shareDeclineAlerts(S,{target:TARGET,time:$('alertTime').value});
  if(!result.latest){$('shareAlertContent').innerHTML='<p class="small">メールを取り込むと判定します。</p>';return;}
- const cards=result.alerts.map(item=>`<div style="margin-top:10px;padding:12px;border:2px solid #c13d3d;border-radius:10px;background:#fff3f2;color:#9c2020"><b>危険：${esc(item.kind)} ${esc(item.name)}</b><br>3日間で連続低下 / −${item.drop}pt<br>${item.dates.map((date,i)=>`${date}：<b>${item.shares[i]}%</b>`).join(' → ')}</div>`).join('');
+ const cards=result.alerts.map(item=>{
+  const people=value=>value.toLocaleString('ja-JP')+'人',change=item.customerChange<0?people(-item.customerChange)+'減':item.customerChange>0?people(item.customerChange)+'増':'増減なし';
+  const timeLabel=$('alertTime').value==='average'?'11・15・19時平均':$('alertTime').value+'時';
+  const reason=item.shareDeclining?`3日間でシェア連続低下 / −${item.drop}pt${item.customerDeclining?'・客数も連続減少':''}`:'3日間で客数連続減少';
+  return `<div style="margin-top:10px;padding:12px;border:2px solid #c13d3d;border-radius:10px;background:#fff3f2;color:#9c2020"><b>危険：${esc(item.kind)} ${esc(item.name)}</b><br>${reason}<br><b style="color:${item.customerChange<0?'#9c2020':'#172033'}">客数（${timeLabel}）：${people(item.customers[0])} → ${people(item.customers[2])}（${change}）</b><div style="margin-top:6px">${item.dates.map((date,i)=>`${date}：<b>${item.shares[i]}% / ${people(item.customers[i])}</b>`).join('<br>')}</div></div>`;
+ }).join('');
  $('shareAlertContent').innerHTML=`<p class="small">${result.dates[0]}〜${result.latest} / 判定できたカテゴリー ${result.checked}件</p>`+(cards||`<p>${result.checked?'判定できたカテゴリーに3日間の連続低下はありません。':'判定に必要な3日分のデータがありません。'}</p>`)+(result.unavailable.length?`<details style="margin-top:10px"><summary>判定できないカテゴリー ${result.unavailable.length}件</summary>${result.unavailable.map(item=>`<p class="small">${esc(item.kind)} ${esc(item.name)}：${esc(item.reason)}</p>`).join('')}</details>`:'');
 }
 bindChange($('alertTime'),renderShareAlerts);
