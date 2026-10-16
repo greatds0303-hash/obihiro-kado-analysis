@@ -1,6 +1,6 @@
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
 import {decodeSurveyCsv,mergeCsvReport} from './csv-import.js';
-import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts,marketSizeComparison} from './analysis.js';
+import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts,marketSizeComparison,monthlyCustomerGrowth} from './analysis.js';
 import {drawTrend} from './trend-chart.js';
 import {request} from './api-client.js';
 
@@ -171,6 +171,7 @@ function monthDelta(current,previous,date){
  return `<br>前月 ${date?date.slice(0,7):'なし'}<br>客数差 ${value(delta.customers,'名')}<br>シェア差 ${value(delta.share,'pt')}<br>稼働率差 ${value(delta.util,'pt')}`;
 }
 function renderTable(){
+  $('monthlyCustomerGrowth').hidden=true;
   $('summaryControls').hidden=S.tab!=='summary';
   $('summaryHourField').hidden=$('summaryAggregation').value!=='time';
   renderDetailCharts();
@@ -179,12 +180,20 @@ function renderTable(){
   const data=detailRows('summary'),stores=uniq(data.map(r=>r.store)),keys=uniq(data.map(r=>JSON.stringify([r.date,r.time])));
   const source=$('summaryAggregation').value!=='time'?averageTrendRows(S):trendRows(S,{time:Number($('summaryHour').value)});
   const monthlyHistory=$('summaryAggregation').value==='month'?periodTrendRows(averageTrendRows(S),'month'):[];
+  if($('summaryAggregation').value==='month'&&data.length){
+   const growth=monthlyCustomerGrowth(data,monthlyHistory),number=v=>v.toLocaleString('ja-JP');
+   $('monthlyCustomerGrowth').hidden=false;
+   $('monthlyCustomerGrowth').innerHTML=`<b>★ ${esc(growth.month.slice(0,7))} 客数増加ランキング</b><p class="small">11・15・19時の1日平均 / 前月 ${esc(growth.previousMonth.slice(0,7))} の平均との比較<br>対象：${esc(growth.from)}〜${esc(growth.to)}${growth.partial?'（月の一部）':''}<br>比較できた ${growth.comparedStores}店舗 / 客数の増加人数が大きい順</p>`+(growth.gainers.length?growth.gainers.map(r=>`<div class="growth-entry" data-growth-store="${esc(r.store)}"><b>${r.rank}位 ${esc(r.store)}</b><br><strong>+${number(r.delta)}名</strong> ${r.changePercent==null?'（前月0名）':`（+${number(r.changePercent)}%）`}<br><span class="small">前月 ${number(r.previousCustomers)}名 → 対象月 ${number(r.customers)}名 / 対象月${r.days||0}日・前月${r.previousDays}日を集計</span></div>`).join(''):`<p>${growth.comparedStores?'前月より客数が増加した店舗はありません。':'前月の比較データがありません。'}</p>`);
+  }
   const totals=selectedRange(source),val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
   const metrics=r=>r?`客数 <b>${val(r.customers,'名')}</b><br>シェア ${val(r.share,'%')}<br>稼働率 ${val(r.util,'%')}<br>総台数 ${val(r.storeTotal,'台')}`:'未取得';
   const summaryRow=$('summaryAggregation').value!=='range'?'':'<tr class="period-average"><td><b>指定期間の平均</b><br>'+esc($('from').value)+'〜'+esc($('to').value)+'</td>'+stores.map(store=>`<td data-store="${esc(store)}">${metrics(totals.find(r=>r.store===store))}</td>`).join('')+'</tr>';
   $('tableWrap').innerHTML='<table class="store-matrix"><thead><tr><th>日付・集計</th>'+stores.map(store=>`<th>${esc(store)}</th>`).join('')+'</tr>'+summaryRow+'</thead><tbody>'+($('summaryAggregation').value==='range'?[]:keys.slice(0,1000)).map(key=>{
    const [date,time]=JSON.parse(key),prior=time==='月平均'?comparisonDate(date,'month'):null,label=time==='月平均'?date.slice(0,7)+' 月平均（11・15・19時）':date+'<br>'+(time==='1日平均'?'1日平均（11・15・19時）':time+'時');
-   return `<tr><td>${label}</td>`+stores.map(store=>`<td data-store="${esc(store)}">${metrics(data.find(r=>r.date===date&&r.time===time&&r.store===store))}${time==='月平均'?monthDelta(data.find(r=>r.date===date&&r.store===store),monthlyHistory.find(r=>r.date===prior&&r.store===store),prior):''}</td>`).join('')+'</tr>';
+   return `<tr><td>${label}</td>`+stores.map(store=>{
+    const current=data.find(r=>r.date===date&&r.time===time&&r.store===store),previous=monthlyHistory.find(r=>r.date===prior&&r.store===store),increase=time==='月平均'?compareRows(current,previous).customers:null;
+    return `<td data-store="${esc(store)}"${increase>0?' class="growth-cell"':''}>${increase>0?`<span class="growth-badge">★ 客数増加 +${increase}名</span><br>`:''}${metrics(current)}${time==='月平均'?monthDelta(current,previous,prior):''}</td>`;
+   }).join('')+'</tr>';
   }).join('')+'</tbody></table>';
 
 

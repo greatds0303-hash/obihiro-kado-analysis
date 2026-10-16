@@ -383,3 +383,13 @@ test('注目機種群の客数だけが減った場合も通知し時間変更�
  for(const r of specials){const i=Number(r.date.slice(-2))-6;r.customers=r.store.startsWith('イーグル')?30:70+i*50;}
  await restore();await expect(page.locator('#shareAlertContent')).toContainText('30人 → 30人（増減なし）');
 });
+
+test('月平均で客数が増えた店を一覧上のランキングと店舗欄の印ですぐ見分ける',async({page})=>{
+ const summaries=[];for(const [date,counts] of [['2026-09-01',[100,200,50]],['2026-10-15',[130,190,60]]])for(const time of [11,15,19])for(const [i,store] of ['ひまわり帯広店','イーグル スクエア帯広店','競合店'].entries())summaries.push({date,time,store,customers:counts[i],storeTotal:500,util:counts[i]/5});
+ await page.goto('http://127.0.0.1:3102/');await page.locator('#restoreFile').setInputFiles({name:'growth.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries,records:[],specials:[]}))});await page.locator('#summaryAggregation').selectOption('month');
+ const panel=page.locator('#monthlyCustomerGrowth');await expect(panel).toBeVisible();await expect(panel).toContainText('2026-10 客数増加ランキング');await expect(panel).toContainText('前月 2026-09');await expect(panel).toContainText('月の一部');await expect(panel.locator('[data-growth-store]').first()).toContainText('ひまわり帯広店');await expect(panel.locator('[data-growth-store]').first()).toContainText('+30名');await expect(panel.locator('[data-growth-store]').first()).toContainText('+30%');await expect(panel.locator('[data-growth-store]')).toHaveCount(2);
+ const cell=page.locator('#tableWrap tbody tr').last().locator('td[data-store="ひまわり帯広店"]');await expect(cell.locator('.growth-badge')).toContainText('★ 客数増加 +30名');await expect(cell).toHaveCSS('background-color','rgb(237, 245, 255)');await expect(page.locator('#tableWrap tbody tr').last().locator('td[data-store="イーグル スクエア帯広店"] .growth-badge')).toHaveCount(0);
+ await page.locator('#summaryScope').selectOption('selected');await expect(panel.locator('[data-growth-store]')).toHaveCount(0);await expect(panel).toContainText('客数が増加した店舗はありません');await page.locator('#store').selectOption('ひまわり帯広店');await expect(panel.locator('[data-growth-store]')).toHaveCount(1);
+ await page.locator('#summaryAggregation').selectOption('average');await expect(panel).toBeHidden();await page.locator('#summaryAggregation').selectOption('month');await expect(panel).toBeVisible();await page.locator('[data-tab="specials"]').click();await expect(panel).toBeHidden();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+});

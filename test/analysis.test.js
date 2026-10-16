@@ -183,3 +183,14 @@ test('注目機種群はシェア上昇でも客数が3日続けて減れば知�
  for(const row of data.specials)if(row.group==='ジャグラー'&&row.store==='自店'&&row.date==='2026-10-07')row.customers=35;
  assert.equal(shareDeclineAlerts(data,{target:'自店'}).alerts.length,0);
 });
+
+test('月の客数増加ランキングは最新月の前月差を並べ同率順位と欠測を正しく扱う',async()=>{
+ const {monthlyCustomerGrowth}=await import('../public/analysis.js');
+ const history=[{date:'2026-09-01',store:'ひまわり',customers:100,days:30},{date:'2026-09-01',store:'A',customers:50},{date:'2026-09-01',store:'B',customers:200},{date:'2026-09-01',store:'減少店',customers:100}];
+ const current=[{date:'2026-09-01',store:'以前の店',customers:999},{date:'2026-10-01',store:'ひまわり',customers:130,coverageDates:['2026-10-01','2026-10-15']},{date:'2026-10-01',store:'A',customers:80},{date:'2026-10-01',store:'B',customers:210},{date:'2026-10-01',store:'減少店',customers:99},{date:'2026-10-01',store:'新規店',customers:999}];
+ const result=monthlyCustomerGrowth(current,history);
+ assert.equal(result.month,'2026-10-01');assert.equal(result.previousMonth,'2026-09-01');assert.equal(result.comparedStores,4);
+ assert.deepEqual(result.gainers.map(r=>[r.store,r.delta,r.rank]),[['ひまわり',30,1],['A',30,1],['B',10,3]]);
+ assert.equal(result.gainers[0].changePercent,30);assert.equal(result.gainers[0].previousCustomers,100);
+ assert.equal(monthlyCustomerGrowth([{date:'2026-10-01',store:'X',customers:2}],[]).comparedStores,0);
+});
