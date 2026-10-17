@@ -130,7 +130,7 @@ test('スマホの先頭で市場客数・自店シェア・順位・競合イ�
  const report=text.replace('総合計12名 12%','総合計212名 21%\n新台入替');
  await page.goto('http://127.0.0.1:3102/');await page.locator('#latestTime').selectOption('11');await page.locator('#summaryAggregation').selectOption('time');await page.locator('#summaryScope').selectOption('selected');await page.locator('#mailText').fill(report);await page.locator('#pasteImportBtn').click();
  await expect(page.locator('#marketOverview')).toContainText('341名');await expect(page.locator('#marketOverview')).toContainText('2位');await expect(page.locator('#marketOverview')).toContainText('新台入替');
- expect(await page.locator('.wrap > .card:visible').first().getAttribute('id')).toBe('shareAlerts');
+ expect(await page.locator('.wrap > .card:visible').first().getAttribute('id')).toBe('marketInsights');
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'/tmp/obihiro-market-overview.png'});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
@@ -414,4 +414,14 @@ test('最新月の客数相関を正負で切り替え相関店舗の客数シ�
  const panel=page.locator('#storeCorrelation'),all=panel.locator('[data-correlation-category="店舗全体"]');await expect(panel).toBeVisible();await expect(all).toContainText('連動店');await expect(all).toContainText('+1.000');await expect(all).toContainText('平均客数 50名');await expect(all).toContainText('シェア 50%');await expect(all).toContainText('4日');await expect(panel.locator('[data-correlation-category="20S"]')).toContainText('21.74円S');
  await page.locator('#correlationDirection').selectOption('negative');await expect(all).toContainText('逆行店');await expect(all).toContainText('-1.000');await expect(all).toContainText('平均客数 25名');await expect(all).toContainText('シェア 25%');
  await page.locator('#store').selectOption('連動店');await expect(all).toContainText('逆行店');await expect(panel).toContainText('帯広店');await page.locator('#summaryAggregation').selectOption('average');await expect(panel).toBeHidden();
+});
+test('市場要約・店舗種別マトリクス・曜日比較・グラフへの移動',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/');
+ const d={summaries:[],records:[],specials:[]};
+ for(const [date,a,b] of [['2026-09-03',40,60],['2026-09-10',40,60],['2026-09-17',40,60],['2026-09-24',40,60],['2026-10-01',30,90]])for(const time of [11,15,19])for(const [store,customers] of [['イーグル スクエア帯広店',a],['ひまわり帯広店',b]]){const r={date,time,store,customers,event:date==='2026-10-01'?'ポイント交換会':''};d.summaries.push(r);d.records.push({...r,rate:'12.5円S',machines:100});d.specials.push({...r,group:'ジャグラー',machines:100})}
+ await page.locator('#restoreFile').setInputFiles({name:'insights.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(d))});
+ const content=page.locator('#insightContent');await expect(content).toContainText('市場の平均客数は 120人');await expect(content).toContainText('↓ −10人');await expect(content).toContainText('ポイント交換会');await expect(content.locator('thead')).toContainText('ひまわり帯広店');
+ await page.locator('#insightMode').selectOption('weekday');await expect(content).toContainText('比較 4日平均');await expect(page.locator('#insightMode')).toHaveValue('weekday');
+ await content.locator('[data-insight-category="20S"]').first().click();await expect(page.locator('#rate')).toHaveValue('20S');await expect(page.locator('#chartGroup')).toHaveValue('');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();expect(errors).toEqual([]);
 });

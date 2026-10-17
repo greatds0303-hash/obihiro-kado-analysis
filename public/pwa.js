@@ -1,3 +1,4 @@
+import {marketInsights} from './market-insights.js';
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
 import {decodeSurveyCsv,mergeCsvReport} from './csv-import.js';
 import {comparisonDate,compareRows,mergeRows,trendRows,averageTrendRows,periodTrendRows,periodBounds,marketSnapshot,rateCategory,rangeTrendRows,shareDeclineAlerts,marketSizeComparison,monthlyCustomerGrowth,monthlyRateChanges,storeCustomerCorrelations} from './analysis.js';
@@ -274,6 +275,7 @@ function renderMarketSize(){
 }
 bindChange($('marketSizePeriod'),renderMarketSize);
 function drawChart(){
+ renderInsights();
  renderMarketSize();
  const tm=+$('time').value||11,rate=$('rate').value,group=$('chartGroup').value;
  const filters={group,rate:group?'':rate,from:$('from').value,to:$('to').value};
@@ -469,3 +471,30 @@ $('pasteImportBtn').onclick=importPastedMail;
 $('connectionMode').onchange=async event=>{
  const mode=event.target.value;await initialized;S.connectionMode=mode;networkReachable=true;$('syncError').textContent='';refreshNetwork();await saveState();if(mode==='server')await connectApi();
 };
+
+function renderInsights(){
+ const result=marketInsights(S,{target:TARGET,from:$('from').value,to:$('to').value,time:$('time').value||'average',mode:$('insightMode').value});
+ if(!result){$('insightContent').textContent='データを取り込むと市場の要約を表示します。';return;}
+ const num=v=>Number.isFinite(v)?Math.abs(v).toLocaleString('ja-JP',{maximumFractionDigits:1}):'—';
+ const delta=(v,unit)=>Number.isFinite(v)?`<span class="${v<0?'delta-down':'delta-up'}">${v<0?'↓ −':v>0?'↑ ＋':'±'}${num(v)}${unit}</span>`:'比較不可';
+ const metric=r=>`客数 ${num(r.customers)}人 / ${delta(r.customerDelta,'人')}<br>シェア ${Number.isFinite(r.share)?num(r.share)+'%':'—'} / ${delta(r.shareDelta,'pt')}`;
+ const total=result.scopes[0],own=total.rows.find(r=>r.store===TARGET),leader=total.rows.filter(r=>r.store!==TARGET&&r.customerDelta>0).sort((a,b)=>b.customerDelta-a.customerDelta)[0];
+ const stores=[...new Set([...result.stores,...result.scopes.flatMap(s=>s.rows.map(r=>r.store))])].sort((a,b)=>a===TARGET?-1:b===TARGET?1:a.localeCompare(b,'ja'));
+ const jump=(category,store,group=false)=>`<button class="insight-link" data-insight-category="${esc(category)}" data-insight-store="${esc(store)}" data-insight-group="${group?'yes':'no'}">グラフを見る</button>`;
+ $('insightContent').innerHTML=`<p class="small">対象：${result.start}〜${result.latest} / ${$('time').value?$('time').value+'時':'11・15・19時平均'}<br>比較：${result.previousLabel}<br>上の要約と下の一覧は全店舗・全種別が対象です。開始日・終了日・時間の指定に連動します。</p>
+ <div class="market-note"><b>市場の動き</b><br>${total.comparable?`市場の平均客数は ${num(total.total)}人、比較期間から ${delta(total.delta,'人')}。<br>${own?`帯広店は ${metric(own)}。`: '帯広店のデータなし。'}${leader?`<br>客数増加が最大の競合：<b>${esc(leader.store)}</b> ${delta(leader.customerDelta,'人')}`:''}`:'同じ報告店舗で比較できるデータがありません。'}<br>集計日数：対象 ${total.currentDays}日 / 比較 ${total.previousDays}日</div>
+ <h3>店舗×種別の増減</h3><p class="small">右へスクロールできます。↑増加は黒字、↓減少は赤字。各種別のシェアは、その種別の報告店舗全体から計算します。</p>
+ <div class="scroll"><table class="insight-matrix"><thead><tr><th>種別</th>${stores.map(s=>`<th>${esc(s)}</th>`).join('')}</tr></thead><tbody>${result.scopes.map(scope=>`<tr><th>${esc(scope.category)}<br><small>${scope.currentDays}日 / ${scope.previousDays}日</small></th>${stores.map(store=>{const r=scope.rows.find(r=>r.store===store);return `<td>${r?metric(r)+'<br>'+jump(scope.category,store):'比較不可'}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>
+ <h3>帯広店の優先確認</h3><p class="small">平均客数の減少が大きい順。貸玉種別と注目機種群は重なるため合算しません。</p>${result.priorities.length?result.priorities.slice(0,8).map((r,i)=>`<div class="monthly-rate-change"><b>${i+1}. ${esc(r.category)}</b>（${r.kind}）<br>${num(r.previousCustomers)}人 → ${num(r.customers)}人 / ${delta(r.customerDelta,'人')}<br>シェア差 ${delta(r.shareDelta,'pt')} ${jump(r.category,TARGET,r.kind==='注目機種群')}</div>`).join(''):'比較できるデータで客数が減った種別・機種群はありません。'}
+ <h3>競合の増加日とイベント</h3><p class="small">対象期間内の各日を直近4週間の同じ曜日と比較。イベント記載がある増加日の上位5件です。イベントが増加の原因とは断定しません。</p>${result.eventGains.length?result.eventGains.map(r=>`<div class="monthly-rate-change"><b>${esc(r.store)} / ${r.date}</b><br>${metric(r)}<br>比較 ${r.previousDays}日平均<br>${esc(r.events.join(' / '))}${r.rates.map(v=>`<p>${esc(v.category)}：${metric(v)}</p>`).join('')}</div>`).join(''):'比較可能な増加日とイベントの組み合わせはありません。'}
+ <p class="small">取得できた日の平均で比較します（月途中は途中まで）。同じ報告店舗・指定時間のデータがそろわない場合は比較不可。曜日比較は過去4回のうち取得できた日を使用し、日数を表示します。</p>`;
+}
+bindChange($('insightMode'),renderInsights);
+$('insightContent').addEventListener('click',event=>{
+ const button=event.target.closest('[data-insight-category]');if(!button)return;
+ $('store').value=button.dataset.insightStore;
+ $('chartGroup').value=button.dataset.insightGroup==='yes'?button.dataset.insightCategory:'';
+ $('rate').value=button.dataset.insightGroup==='yes'||button.dataset.insightCategory==='全種別'?'':button.dataset.insightCategory;
+ renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();
+ $('chartGroup').scrollIntoView({behavior:'smooth',block:'center'});
+});
