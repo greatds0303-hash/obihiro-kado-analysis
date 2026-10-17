@@ -1,3 +1,7 @@
+export function capacityStats(rows){
+ const valid=rows.length&&rows.every(r=>Number.isFinite(r.machines));
+ return valid?{machines:Math.round(rows.reduce((sum,r)=>sum+r.machines,0)/rows.length*10)/10,machinesMin:Math.min(...rows.map(r=>r.machinesMin??r.machines)),machinesMax:Math.max(...rows.map(r=>r.machinesMax??r.machines))}:{machines:null,machinesMin:null,machinesMax:null};
+}
 export function comparisonDate(date,period,customDate=''){
  const d=new Date(`${date}T00:00:00Z`);
  if(!Number.isFinite(d.getTime()))return null;
@@ -146,7 +150,7 @@ export function averageTrendRows(data,filters={}){
  return [...buckets.values()].map(rows=>{
   const hours=rows.map(r=>r.time).sort((a,b)=>a-b),complete=hours.length===3;
   const mean=key=>complete&&rows.every(r=>Number.isFinite(r[key]))?Math.round(rows.reduce((sum,r)=>sum+r[key],0)/3*10)/10:null;
-  return {...rows[0],time:'average',hours,complete,customers:mean('customers'),util:mean('util'),share:mean('share'),shareSource:'calculated'};
+  return {...rows[0],time:'average',hours,complete,...capacityStats(complete?rows:[]),customers:mean('customers'),util:mean('util'),share:mean('share'),shareSource:'calculated'};
  });
 }
 export function periodBounds(date,period){
@@ -170,7 +174,7 @@ export function periodTrendRows(rows,period='day'){
  return [...buckets.values()].map(source=>{
   const bounds=periodBounds(source[0].date,period),valid=source.filter(r=>Number.isFinite(r.customers)),market=markets.get(bounds.start);
   const sum=valid.reduce((n,r)=>n+r.customers,0),mean=key=>{const values=valid.map(r=>r[key]).filter(Number.isFinite);return values.length?Math.round(values.reduce((n,v)=>n+v,0)/values.length*10)/10:null;};
-  return {...source[0],date:bounds.start,periodEnd:bounds.end,period,days:valid.length,reportedDays:source.length,coverageDates:valid.map(r=>r.date).sort(),periodDays:market.dates.size,complete:valid.length>0,customers:mean('customers'),util:mean('util'),share:valid.length&&market.sum>0?Math.round(sum/market.sum*1000)/10:null,shareSource:'calculated',marketTotal:market.dates.size?Math.round(market.sum/market.dates.size*10)/10:null};
+  return {...source[0],date:bounds.start,periodEnd:bounds.end,period,...capacityStats(valid),days:valid.length,reportedDays:source.length,coverageDates:valid.map(r=>r.date).sort(),periodDays:market.dates.size,complete:valid.length>0,customers:mean('customers'),util:mean('util'),share:valid.length&&market.sum>0?Math.round(sum/market.sum*1000)/10:null,shareSource:'calculated',marketTotal:market.dates.size?Math.round(market.sum/market.dates.size*10)/10:null};
  });
 }
 export function marketSnapshot(current,previous,target){
@@ -196,7 +200,7 @@ export function rangeTrendRows(rows,from,to){
  return [...buckets.values()].map(group=>{
   const valid=group.filter(r=>Number.isFinite(r.customers)),sum=valid.reduce((n,r)=>n+r.customers,0);
   const mean=key=>{const values=valid.map(r=>r[key]).filter(Number.isFinite);return values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length*10)/10:null;};
-  return {...group[0],date:from,periodEnd:to,period:'range',customers:mean('customers'),util:mean('util'),share:valid.length&&marketSum>0?Math.round(sum/marketSum*1000)/10:null,days:valid.length,reportedDays:group.length,coverageDates:valid.map(r=>r.date).sort(),periodDays:days.size,marketTotal:days.size?Math.round(marketSum/days.size*10)/10:null};
+  return {...group[0],date:from,periodEnd:to,period:'range',...capacityStats(valid),customers:mean('customers'),util:mean('util'),share:valid.length&&marketSum>0?Math.round(sum/marketSum*1000)/10:null,days:valid.length,reportedDays:group.length,coverageDates:valid.map(r=>r.date).sort(),periodDays:days.size,marketTotal:days.size?Math.round(marketSum/days.size*10)/10:null};
  });
 }
 
