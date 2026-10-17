@@ -225,3 +225,11 @@ test('相関は欠測をゼロ埋めせず一致日のみを使い定数・比�
  const winner=storeCustomerCorrelations({summaries},{target:'自店'})[0].winner;assert.equal(winner.days,3);assert.equal(winner.customers,53.3);assert.equal(winner.coefficient,1);
  const constant=summaries.map(r=>({...r,customers:1}));assert.equal(storeCustomerCorrelations({summaries:constant},{target:'自店'})[0].winner,null);
 });
+test('機種群の台数は時間・月・期間の平均と範囲を算出し欠測を先頭値で埋めない',async()=>{
+ const {averageTrendRows,periodTrendRows,rangeTrendRows}=await import('../public/analysis.js');
+ const specials=[];for(const [date,machines] of [['2026-09-01',40],['2026-09-02',20]])for(const time of [11,15,19])specials.push({date,time,store:'A',group:'ジャグラー',customers:10,machines});
+ const daily=averageTrendRows({specials},{group:'ジャグラー'}),monthly=periodTrendRows(daily,'month')[0],range=rangeTrendRows(daily,'2026-09-01','2026-09-30')[0];
+ assert.equal(monthly.machines,30);assert.equal(range.machines,30);assert.equal(monthly.machinesMin,20);assert.equal(monthly.machinesMax,40);
+ specials[0].machines=null;assert.equal(averageTrendRows({specials},{group:'ジャグラー'})[0].machines,null);
+ assert.equal(periodTrendRows(averageTrendRows({specials},{group:'ジャグラー'}),'month')[0].machines,null);
+});

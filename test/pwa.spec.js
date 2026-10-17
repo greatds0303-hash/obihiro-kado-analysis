@@ -425,3 +425,11 @@ test('市場要約・店舗種別マトリクス・曜日比較・グラフへ�
  await content.locator('[data-insight-category="20S"]').first().click();await expect(page.locator('#rate')).toHaveValue('20S');await expect(page.locator('#chartGroup')).toHaveValue('');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();expect(errors).toEqual([]);
 });
+test('注目機種群の台数推移と前月差・減台時の優先確認',async({page})=>{
+ await page.goto('/');const d={summaries:[],records:[],specials:[]};
+ for(const [date,machines,customers] of [['2026-09-01',40,20],['2026-10-01',20,10]])for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','ひまわり帯広店']){const r={date,time,store,customers,util:50};d.summaries.push(r);d.specials.push({...r,group:'ジャグラー',machines})}
+ await page.locator('#restoreFile').setInputFiles({name:'capacity.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(d))});
+ await expect(page.locator('#insightContent')).toContainText('平均台数 40台 → 20台');await expect(page.locator('#insightContent')).toContainText('減台と客数減少');
+ await page.locator('[data-tab="specials"]').click();await page.locator('#detailPeriod').selectOption('month');
+ await expect(page.locator('#detailMachines')).toBeVisible();await expect(page.locator('#detailChartValues')).toContainText('比較元台数 40台');await expect(page.locator('#detailChartValues')).toContainText('台数差 -20台');await expect(page.locator('#detailChartValues')).toContainText('台数範囲 20台〜20台');
+});

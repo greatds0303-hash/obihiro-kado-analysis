@@ -1,4 +1,4 @@
-import {averageTrendRows,trendRows,rateCategory,periodBounds} from './analysis.js';
+import {averageTrendRows,trendRows,rateCategory,periodBounds,capacityStats} from './analysis.js';
 const shift=(date,n)=>{const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
 const mean=rows=>rows.reduce((s,r)=>s+r.customers,0)/rows.length;
 // Compare complete snapshots with an identical reporting cohort; missing data is never zero.
@@ -13,7 +13,9 @@ function compareScope(rows,currentDates,previousDates){
  return {comparable:true,currentDays:current.length,previousDays:previous.length,total,priorTotal,delta:total-priorTotal,rows:current[0].map(({store})=>{
   const customers=mean(current.map(rs=>rs.find(r=>r.store===store))),prior=mean(previous.map(rs=>rs.find(r=>r.store===store)));
   const share=total>0?customers/total*100:null,priorShare=priorTotal>0?prior/priorTotal*100:null;
-  return {store,customers,previousCustomers:prior,customerDelta:customers-prior,share,shareDelta:share!==null&&priorShare!==null?share-priorShare:null};
+  const own=current.map(rs=>rs.find(r=>r.store===store)),prev=previous.map(rs=>rs.find(r=>r.store===store));
+  const machines=capacityStats(own).machines,previousMachines=capacityStats(prev).machines,util=machines>0?customers/machines*100:null,previousUtil=previousMachines>0?prior/previousMachines*100:null;
+  return {store,machines,previousMachines,machineDelta:machines!==null&&previousMachines!==null?machines-previousMachines:null,util,utilDelta:util!==null&&previousUtil!==null?util-previousUtil:null,customers,previousCustomers:prior,customerDelta:customers-prior,share,shareDelta:share!==null&&priorShare!==null?share-priorShare:null};
  })};
 }
 export function marketInsights(data,{target,from='',to='',time='average',mode='month'}={}){

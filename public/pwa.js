@@ -241,16 +241,16 @@ function renderDetailCharts(){
  const val=(v,unit='')=>Number.isFinite(v)?v.toLocaleString('ja-JP')+unit:'未取得';
  const diff=(v,unit)=>v==null?'比較なし':`<span style="color:${v<0?'#c13d3d':'#172033'}">${v>0?'+':''}${v}${unit}</span>`;
  const rangeStart=from||uniq(raw.map(r=>r.date))[0],rangeEnd=to||uniq(raw.map(r=>r.date)).at(-1),totals=rangeTrendRows(raw,rangeStart,rangeEnd);
- const metrics=r=>r?`平均客数 <b>${val(r.customers,'名')}</b><br>シェア ${val(r.share,'%')}<br>稼働率 ${val(r.util,'%')}`:'未取得';
+ const metrics=r=>r?`平均客数 <b>${val(r.customers,'名')}</b><br>シェア ${val(r.share,'%')}<br>稼働率 ${val(r.util,'%')}<br>台数（平均） <b>${val(r.machines,'台')}</b>${Number.isFinite(r.machinesMin)?'<br>台数範囲 '+val(r.machinesMin,'台')+'〜'+val(r.machinesMax,'台'):''}`:'未取得';
  $('detailChartValues').innerHTML='<table class="store-matrix"><thead><tr><th>日付・期間</th>'+stores.map(store=>`<th>${esc(store)}</th>`).join('')+'</tr><tr class="period-average"><td><b>指定期間の平均</b><br>'+esc(rangeStart||'')+'〜'+esc(rangeEnd||'')+'</td>'+stores.map(store=>{const row=totals.find(r=>r.store===store);return `<td data-store="${esc(store)}">${metrics(row)}<br>取得 ${row?.days||0}日</td>`;}).join('')+'</tr></thead><tbody>'+dates.map(date=>{
   const sample=rows.find(r=>r.date===date),prior=comparisonDate(date,period==='month'?'month':period==='week'?'7':'1');
   return `<tr><td>${date}${sample?.periodEnd?'〜'+sample.periodEnd:''}<br>比較 ${prior||'なし'}</td>`+stores.map(store=>{
    const row=rows.find(r=>r.date===date&&r.store===store),prev=history.find(r=>r.date===prior&&r.store===store),d=compareRows(row,prev);
-   return `<td data-store="${esc(store)}">${metrics(row)}<br>客数差 ${diff(d.customers,'名')}<br>シェア差 ${diff(d.share,'pt')}</td>`;
+   return `<td data-store="${esc(store)}">${metrics(row)}<br>客数差 ${diff(d.customers,'名')}<br>シェア差 ${diff(d.share,'pt')}<br>稼働率差 ${diff(d.util,'pt')}<br>比較元台数 ${val(prev?.machines,'台')}<br>台数差 ${diff(Number.isFinite(row?.machines)&&Number.isFinite(prev?.machines)?Math.round((row.machines-prev.machines)*10)/10:null,'台')}</td>`;
   }).join('')+'</tr>';
  }).join('')+'</tbody></table>';
 
- for(const [id,key,unit] of [['detailCustomers','customers','名'],['detailShare','share','%'],['detailUtil','util','%']]){
+ for(const [id,key,unit] of [['detailCustomers','customers','名'],['detailShare','share','%'],['detailUtil','util','%'],['detailMachines','machines','台']]){
   $(id).setAttribute('aria-label',`${category} ${key} ${stores.length}店舗`);
   drawTrend($(id),{rows,dates,stores,colors,key,unit,target:TARGET,date:detailSelectedDate,wide:$('detailZoom').value==='wide',onDate:day=>{detailSelectedDate=day;renderDetailCharts();}});
  }
@@ -485,7 +485,7 @@ function renderInsights(){
  <div class="market-note"><b>市場の動き</b><br>${total.comparable?`市場の平均客数は ${num(total.total)}人、比較期間から ${delta(total.delta,'人')}。<br>${own?`帯広店は ${metric(own)}。`: '帯広店のデータなし。'}${leader?`<br>客数増加が最大の競合：<b>${esc(leader.store)}</b> ${delta(leader.customerDelta,'人')}`:''}`:'同じ報告店舗で比較できるデータがありません。'}<br>集計日数：対象 ${total.currentDays}日 / 比較 ${total.previousDays}日</div>
  <h3>店舗×種別の増減</h3><p class="small">右へスクロールできます。↑増加は黒字、↓減少は赤字。各種別のシェアは、その種別の報告店舗全体から計算します。</p>
  <div class="scroll"><table class="insight-matrix"><thead><tr><th>種別</th>${stores.map(s=>`<th>${esc(s)}</th>`).join('')}</tr></thead><tbody>${result.scopes.map(scope=>`<tr><th>${esc(scope.category)}<br><small>${scope.currentDays}日 / ${scope.previousDays}日</small></th>${stores.map(store=>{const r=scope.rows.find(r=>r.store===store);return `<td>${r?metric(r)+'<br>'+jump(scope.category,store):'比較不可'}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>
- <h3>帯広店の優先確認</h3><p class="small">平均客数の減少が大きい順。貸玉種別と注目機種群は重なるため合算しません。</p>${result.priorities.length?result.priorities.slice(0,8).map((r,i)=>`<div class="monthly-rate-change"><b>${i+1}. ${esc(r.category)}</b>（${r.kind}）<br>${num(r.previousCustomers)}人 → ${num(r.customers)}人 / ${delta(r.customerDelta,'人')}<br>シェア差 ${delta(r.shareDelta,'pt')} ${jump(r.category,TARGET,r.kind==='注目機種群')}</div>`).join(''):'比較できるデータで客数が減った種別・機種群はありません。'}
+ <h3>帯広店の優先確認</h3><p class="small">平均客数の減少が大きい順。貸玉種別と注目機種群は重なるため合算しません。</p>${result.priorities.length?result.priorities.slice(0,8).map((r,i)=>`<div class="monthly-rate-change"><b>${i+1}. ${esc(r.category)}</b>（${r.kind}）<br>${num(r.previousCustomers)}人 → ${num(r.customers)}人 / ${delta(r.customerDelta,'人')}<br>シェア差 ${delta(r.shareDelta,'pt')}<br>平均台数 ${num(r.previousMachines)}台 → ${num(r.machines)}台 / ${delta(r.machineDelta,'台')}<br>稼働率 ${Number.isFinite(r.util)?num(r.util)+'%':'未取得'} / 差 ${delta(r.utilDelta,'pt')}<br><span class="small">${r.machineDelta<0?'減台と客数減少が重なっています（原因の断定ではありません）。':r.machineDelta===0?'平均台数に変化なし。':r.machineDelta>0?'平均台数は増加しています。':'台数未取得のため減台の判定不可。'}</span> ${jump(r.category,TARGET,r.kind==='注目機種群')}</div>`).join(''):'比較できるデータで客数が減った種別・機種群はありません。'}
  <h3>競合の増加日とイベント</h3><p class="small">対象期間内の各日を直近4週間の同じ曜日と比較。イベント記載がある増加日の上位5件です。イベントが増加の原因とは断定しません。</p>${result.eventGains.length?result.eventGains.map(r=>`<div class="monthly-rate-change"><b>${esc(r.store)} / ${r.date}</b><br>${metric(r)}<br>比較 ${r.previousDays}日平均<br>${esc(r.events.join(' / '))}${r.rates.map(v=>`<p>${esc(v.category)}：${metric(v)}</p>`).join('')}</div>`).join(''):'比較可能な増加日とイベントの組み合わせはありません。'}
  <p class="small">取得できた日の平均で比較します（月途中は途中まで）。同じ報告店舗・指定時間のデータがそろわない場合は比較不可。曜日比較は過去4回のうち取得できた日を使用し、日数を表示します。</p>`;
 }
