@@ -433,3 +433,10 @@ test('注目機種群の台数推移と前月差・減台時の優先確認',asy
  await page.locator('[data-tab="specials"]').click();await page.locator('#detailPeriod').selectOption('month');
  await expect(page.locator('#detailMachines')).toBeVisible();await expect(page.locator('#detailChartValues')).toContainText('比較元台数 40台');await expect(page.locator('#detailChartValues')).toContainText('台数差 -20台');await expect(page.locator('#detailChartValues')).toContainText('台数範囲 20台〜20台');
 });
+test('市場要約の前日・前週切替が比較日と客数差に連動し選択を維持する',async({page})=>{
+ await page.goto('/');const d={summaries:[],records:[],specials:[]};
+ for(const [date,n] of [['2026-09-24',10],['2026-09-30',20],['2026-10-01',40]])for(const time of [11,15,19])for(const store of ['イーグル スクエア帯広店','ひまわり帯広店']){const r={date,time,store,customers:n,machines:100,event:'ポイント交換会'};d.summaries.push(r);d.records.push({...r,rate:'20S'})}
+ await page.locator('#restoreFile').setInputFiles({name:'comparison.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(d))});
+ const content=page.locator('#insightContent');await page.locator('#insightMode').selectOption('day');await expect(content).toContainText('比較：2026-09-30');await expect(content).toContainText('↑ ＋20人');await expect(content).toContainText('各日を前日と比較');
+ await page.locator('#insightMode').selectOption('week');await expect(content).toContainText('比較：2026-09-24');await expect(content).toContainText('↑ ＋30人');await expect(content).toContainText('各日を前週の同じ曜日と比較');await expect(page.locator('#insightMode')).toHaveValue('week');
+});

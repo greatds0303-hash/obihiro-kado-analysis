@@ -41,7 +41,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
   <div id="appUpdate" class="card" hidden><b>新しい版が使えます</b><p class="small">操作中の自動再読み込みは行いません。</p><button class="btn" id="applyUpdate">最新版に更新</button></div>
   <section class="card" id="marketInsights">
     <b>市場の要約・店舗×種別の増減</b>
-    <div class="field" style="margin-top:10px"><label for="insightMode">比較方法</label><select id="insightMode"><option value="month">最新の表示月と前月の平均</option><option value="weekday">最新の表示日と直近4週間の同じ曜日</option></select></div>
+    <div class="field" style="margin-top:10px"><label for="insightMode">比較方法</label><select id="insightMode"><option value="month">最新の表示月と前月の平均</option><option value="day">最新の表示日と前日</option><option value="week">最新の表示日と前週の同じ曜日</option><option value="weekday">最新の表示日と直近4週間の同じ曜日</option></select></div>
     <div id="insightContent" aria-live="polite"></div>
   </section>
   <div class="card" id="shareAlerts">

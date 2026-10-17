@@ -23,8 +23,10 @@ export function marketInsights(data,{target,from='',to='',time='average',mode='m
  if(!latest)return null;
  const bounds=periodBounds(latest,'month'),priorBounds=periodBounds(shift(bounds.start,-1),'month');
  const start=from>bounds.start?from:bounds.start;
- const currentDates=mode==='weekday'?[latest]:dates.filter(d=>d>=start);
- const previousDates=mode==='weekday'?[7,14,21,28].map(n=>shift(latest,-n)):[...new Set((data.summaries||[]).map(r=>r.date).filter(d=>d>=priorBounds.start&&d<=priorBounds.end))].sort();
+ const singleDay=['day','week','weekday'].includes(mode);
+ const offsets=mode==='day'?[1]:mode==='week'?[7]:[7,14,21,28];
+ const currentDates=singleDay?[latest]:dates.filter(d=>d>=start);
+ const previousDates=singleDay?offsets.map(n=>shift(latest,-n)):[...new Set((data.summaries||[]).map(r=>r.date).filter(d=>d>=priorBounds.start&&d<=priorBounds.end))].sort();
  const daily=options=>time==='average'?averageTrendRows(data,options):trendRows(data,{...options,time:Number(time)});
  const categories=[...new Set((data.records||[]).map(r=>rateCategory(r.rate)))].sort();
  const scopes=[{category:'全種別',...compareScope(daily({}),currentDates,previousDates)},...categories.map(category=>({category,...compareScope(daily({rate:category}),currentDates,previousDates)}))];
@@ -32,14 +34,14 @@ export function marketInsights(data,{target,from='',to='',time='average',mode='m
  const groups=[...new Set((data.specials||[]).filter(r=>r.store===target&&r.dataSource!=='csv').map(r=>r.group))];
  for(const group of groups){const s=compareScope(daily({group}),currentDates,previousDates),r=s.rows.find(r=>r.store===target);if(r?.customerDelta<0)priorities.push({...r,category:group,kind:'注目機種群'})}
  priorities.sort((a,b)=>a.customerDelta-b.customerDelta);
- // Daily competitor increases versus the preceding four same weekdays; event dates are exact.
+ // Event comparisons follow day/week mode; monthly and four-week modes use four same weekdays.
  const eventGains=[];const overallDaily=daily({});const scopedDaily=new Map(categories.map(category=>[category,daily({rate:category})]));
- for(const date of currentDates){const previous=[7,14,21,28].map(n=>shift(date,-n)),s=compareScope(overallDaily,[date],previous);
+ for(const date of currentDates){const previous=offsets.map(n=>shift(date,-n)),s=compareScope(overallDaily,[date],previous);
   for(const r of s.rows.filter(r=>r.store!==target&&r.customerDelta>0)){
    const events=[...new Set((data.summaries||[]).filter(x=>x.store===r.store&&x.date===date&&(time==='average'||x.time===Number(time))).map(x=>x.event).filter(Boolean))];
    if(events.length){const rates=categories.flatMap(category=>{const v=compareScope(scopedDaily.get(category),[date],previous).rows.find(x=>x.store===r.store);return v?.customerDelta>0?[{...v,category}]:[]});eventGains.push({...r,date,events,rates,previousDays:s.previousDays})}
   }
  }
  eventGains.sort((a,b)=>b.customerDelta-a.customerDelta);
- return {latest,start:mode==='weekday'?latest:start,mode,previousLabel:mode==='weekday'?previousDates.slice().sort().join('・'):priorBounds.start+'〜'+priorBounds.end,scopes,priorities,eventGains:eventGains.slice(0,5),stores:[...new Set((data.summaries||[]).filter(r=>currentDates.includes(r.date)).map(r=>r.store))]};
+ return {latest,start:singleDay?latest:start,mode,eventComparison:mode==='day'?'前日':mode==='week'?'前週の同じ曜日':'直近4週間の同じ曜日',previousLabel:singleDay?previousDates.slice().sort().join('・'):priorBounds.start+'〜'+priorBounds.end,scopes,priorities,eventGains:eventGains.slice(0,5),stores:[...new Set((data.summaries||[]).filter(r=>currentDates.includes(r.date)).map(r=>r.store))]};
 }

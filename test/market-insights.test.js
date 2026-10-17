@@ -11,3 +11,12 @@ test('priority cards distinguish capacity reduction from utilization reduction a
  const r=marketInsights(d,{target:'A'}).priorities.find(r=>r.kind==='注目機種群');assert.equal(r.previousMachines,80);assert.equal(r.machines,60);assert.equal(r.machineDelta,-20);assert.equal(r.utilDelta,0);
  d.specials[0].machines=null;assert.equal(marketInsights(d,{target:'A'}).priorities.find(r=>r.kind==='注目機種群').machineDelta,null);
 });
+test('前日・前週は表示範囲の最新日から暦日で比較し時間・カテゴリー・イベントも連動する',()=>{
+ const d={summaries:[],records:[],specials:[]};
+ for(const [date,n] of [['2026-09-24',10],['2026-09-30',20],['2026-10-01',40],['2026-10-02',999]])for(const time of [11,15,19])for(const store of ['A','B']){const r={date,time,store,customers:n+(time===19?5:0),machines:100,event:'イベント'};d.summaries.push(r);d.records.push({...r,rate:'20S'});d.specials.push({...r,group:'ジャグラー'})}
+ const options={target:'A',from:'2026-10-01',to:'2026-10-01',time:19};
+ const day=marketInsights(d,{...options,mode:'day'}),week=marketInsights(d,{...options,mode:'week'});
+ assert.equal(day.start,'2026-10-01');assert.equal(day.latest,'2026-10-01');assert.equal(day.previousLabel,'2026-09-30');assert.equal(week.previousLabel,'2026-09-24');
+ assert.equal(day.scopes[0].rows[0].customers,45);assert.equal(day.scopes[0].rows[0].customerDelta,20);assert.equal(week.scopes[1].rows[0].customerDelta,30);assert.equal(day.eventGains[0].customerDelta,20);assert.equal(week.eventGains[0].customerDelta,30);
+ d.summaries=d.summaries.filter(r=>r.date!=='2026-09-30');assert.equal(marketInsights(d,{...options,mode:'day'}).scopes[0].comparable,false);
+});
