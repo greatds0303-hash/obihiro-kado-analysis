@@ -106,6 +106,14 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
     </div>
   </div>
 
+  <section class="card" id="deviceTransfer">
+    <b>スマホ・PC連携（ファイル）</b>
+    <ol class="small"><li>データのある端末で「連携ファイルを書き出す」を押します。</li><li>保存したJSONファイルをUSB・メール添付・共有フォルダーなどで相手の端末へ渡します。</li><li>相手の端末で<a href="./">同じアプリ</a>を開き、「連携ファイルを読み込む」で選びます。</li></ol>
+    <div class="row"><button class="btn" id="transferExport">連携ファイルを書き出す</button><button class="btn gray" id="transferImport">連携ファイルを読み込む</button><input id="transferFile" type="file" accept=".json,application/json" hidden></div>
+    <p class="small">PC→スマホも同じ手順です。自動同期ではないため、追加データを渡す際は再度書き出してください。読み込み先のデータ・接続設定は保持します。同じ日時・店舗・貸玉／機種群がある場合は読み込み先を優先し、重複追加しません。メールの未送信本文や同期設定は書き出しません。既存のバックアップJSONも読み込めます（100MBまで）。</p>
+    <div class="msg" id="transferStatus" role="status">このファイルには店舗の分析データが含まれます。共有先を確認して渡してください。</div>
+  </section>
+
   <div class="card" id="analysis">
     <div class="filters">
       <div class="field"><label>開始日</label><input type="date" id="from"></div>

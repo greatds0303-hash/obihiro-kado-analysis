@@ -498,3 +498,36 @@ $('insightContent').addEventListener('click',event=>{
  renderLatestCompare();renderRateCompare();renderRanking();renderTable();drawChart();
  $('chartGroup').scrollIntoView({behavior:'smooth',block:'center'});
 });
+
+$('transferExport').onclick=async()=>{
+ await initialized;
+ if(!S.summaries.length&&!S.records.length&&!S.specials.length){$('transferStatus').textContent='書き出すデータがありません。先にメール・CSVなどを取り込んでください。';return;}
+ const data={format:'obihiro-device-transfer',version:1,exportedAt:new Date().toISOString(),summaries:S.summaries,records:S.records,specials:S.specials,mailKeys:[...S.mailKeys]};
+ const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+ if(blob.size>100*1024*1024){$('transferStatus').textContent='データが100MBを超えています。連携ファイルの上限を超えるため書き出せません。';return;}
+ download(blob,`帯広店_端末連携_${new Date().toISOString().slice(0,10)}.json`);
+ $('transferStatus').textContent=`連携ファイルを書き出しました。店舗総合 ${S.summaries.length}件・貸玉 ${S.records.length}件・機種群 ${S.specials.length}件。相手の端末で「連携ファイルを読み込む」から選んでください。`;
+};
+$('transferImport').onclick=()=>$('transferFile').click();
+$('transferFile').onchange=async event=>{
+ const file=event.target.files[0];event.target.value='';if(!file)return;await initialized;
+ $('transferImport').disabled=true;$('transferExport').disabled=true;
+ const before={summaries:S.summaries,records:S.records,specials:S.specials,mailKeys:S.mailKeys,emails:S.emails};let staged=false;
+ try{
+  if(file.size>100*1024*1024)throw Error('100MB以下のJSONファイルを選んでください。');
+  const data=JSON.parse(await file.text()),incoming={};
+  for(const kind of ['summaries','records','specials']){
+   if(!Array.isArray(data?.[kind]))throw Error('連携ファイルまたはバックアップJSONを選んでください。');
+   incoming[kind]=cleanRows(data[kind],kind);
+   if(incoming[kind].length!==data[kind].length)throw Error('日時・店舗・客数などに不正なデータが含まれています。取り込みませんでした。');
+  }
+  const additions=[];
+  for(const kind of ['summaries','records','specials']){const merged=mergeRows(incoming[kind],S[kind],kind);additions.push(merged.length-S[kind].length);incoming[kind]=merged;}
+  const keys=new Set([...S.mailKeys,...(Array.isArray(data.mailKeys)?data.mailKeys.filter(k=>typeof k==='string'):[])]);
+  staged=true;Object.assign(S,incoming,{mailKeys:keys,emails:Math.max(S.emails,keys.size)});
+  if(!await saveState())throw Error('端末への保存に失敗しました。空き容量を確認してください。');
+  staged=false;updateAll();
+  $('transferStatus').textContent=`連携ファイルを読み込み、端末に保存しました。追加：店舗総合 ${additions[0]}件・貸玉 ${additions[1]}件・機種群 ${additions[2]}件。同じデータは重複追加せず、読み込み先の値を保持しました。`;
+ }catch(error){if(staged)Object.assign(S,before);$('transferStatus').textContent=error instanceof SyntaxError?'JSONを読み取れませんでした。連携ファイルを選び直してください。':error.message;}
+ finally{$('transferImport').disabled=false;$('transferExport').disabled=false;}
+};

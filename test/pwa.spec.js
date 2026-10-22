@@ -440,3 +440,14 @@ test('市場要約の前日・前週切替が比較日と客数差に連動し�
  const content=page.locator('#insightContent');await page.locator('#insightMode').selectOption('day');await expect(content).toContainText('比較：2026-09-30');await expect(content).toContainText('↑ ＋20人');await expect(content).toContainText('各日を前日と比較');
  await page.locator('#insightMode').selectOption('week');await expect(content).toContainText('比較：2026-09-24');await expect(content).toContainText('↑ ＋30人');await expect(content).toContainText('各日を前週の同じ曜日と比較');await expect(page.locator('#insightMode')).toHaveValue('week');
 });
+test('スマホからPCへ連携JSONを渡し既存データ・設定を保持し再読込で重複しない',async({page,browser})=>{
+ await page.goto('/');const row={date:'2026-10-01',time:11,store:'イーグル スクエア帯広店',customers:20,event:'交換会',machines:40};
+ await page.locator('#restoreFile').setInputFiles({name:'source.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries:[row],records:[{...row,rate:'12.5円S'}],specials:[{...row,group:'ジャグラー'}],pendingEmails:[{id:'private',text:'未送信本文'}],mailKeys:['m1'],connectionMode:'manual'}))});
+ const downloadEvent=page.waitForEvent('download');await page.locator('#transferExport').click();const download=await downloadEvent,path=await download.path();const data=JSON.parse(readFileSync(path,'utf8'));expect(data.pendingEmails).toBeUndefined();expect(data.connectionMode).toBeUndefined();expect(data.specials[0].machines).toBe(40);
+ const pcContext=await browser.newContext({viewport:{width:1440,height:900}});try{const pc=await pcContext.newPage();await pc.goto('/');
+ await pc.locator('#restoreFile').setInputFiles({name:'existing.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries:[{...row,customers:99},{...row,date:'2026-09-01'}],records:[],specials:[],mailKeys:[]}))});
+ await pc.locator('#transferFile').setInputFiles(path);await expect(pc.locator('#transferStatus')).toContainText('店舗総合 0件・貸玉 1件・機種群 1件');await pc.locator('#transferFile').setInputFiles(path);await expect(pc.locator('#transferStatus')).toContainText('店舗総合 0件・貸玉 0件・機種群 0件');
+ await pc.reload();const savedEvent=pc.waitForEvent('download');await pc.locator('#transferExport').click();const saved=JSON.parse(readFileSync(await (await savedEvent).path(),'utf8'));expect(saved.summaries).toHaveLength(2);expect(saved.summaries.find(r=>r.date===row.date).customers).toBe(99);expect(saved.specials[0].group).toBe('ジャグラー');
+ await pc.locator('#transferFile').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries:[{...row,customers:-1}],records:[],specials:[]}))});await expect(pc.locator('#transferStatus')).toContainText('不正なデータ');await expect(pc.locator('#kDays')).toHaveText('2');
+ }finally{await pcContext.close()}
+});
