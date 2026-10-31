@@ -451,3 +451,12 @@ test('スマホからPCへ連携JSONを渡し既存データ・設定を保持�
  await pc.locator('#transferFile').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({summaries:[{...row,customers:-1}],records:[],specials:[]}))});await expect(pc.locator('#transferStatus')).toContainText('不正なデータ');await expect(pc.locator('#kDays')).toHaveText('2');
  }finally{await pcContext.close()}
 });
+test('曜日別平均客数は全店舗を比較し月別・指定期間・時間・店舗を切り替える',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/');const d={summaries:[],records:[],specials:[]};
+ for(const [date,a,b] of [['2026-09-07',100,10],['2026-10-05',10,40],['2026-10-12',30,60],['2026-10-06',30,20]])for(const time of [11,15,19])for(const [store,n] of [['イーグル スクエア帯広店',a],['ひまわり帯広店',b]])d.summaries.push({date,time,store,customers:n+(time===19?6:0)});
+ await page.locator('#restoreFile').setInputFiles({name:'weekday.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(d))});
+ await page.locator('#weekdayMonth').selectOption('2026-10');await expect(page.locator('#weekdayContext')).toContainText('2026-10-01〜2026-10-31');await expect(page.locator('#weekdayPeaks')).toContainText('★ 火曜 32人');await expect(page.locator('#weekdayPeaks')).toContainText('★ 月曜 52人');await expect(page.locator('#weekdayTable')).toContainText('取得 2日');await expect(page.locator('#weekdayTable')).toContainText('未取得');
+ await page.locator('#weekdayStore').selectOption('ひまわり帯広店');await expect(page.locator('#weekdayBars')).toContainText('ひまわり帯広店');await expect(page.locator('#weekdayBars')).toContainText('52人');
+ await page.locator('#time').selectOption('11');await expect(page.locator('#weekdayPeaks')).toContainText('★ 火曜 30人');await expect(page.locator('#weekdayStore')).toHaveValue('ひまわり帯広店');await expect(page.locator('#weekdayMonth')).toHaveValue('2026-10');
+ await page.locator('#weekdayMonth').selectOption('2026-09');await expect(page.locator('#weekdayPeaks')).toContainText('★ 月曜 100人');await page.locator('#weekdayMonth').selectOption('');await expect(page.locator('#weekdayContext')).toContainText('2026-07-04〜2026-10-12');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();expect(errors).toEqual([]);
+});

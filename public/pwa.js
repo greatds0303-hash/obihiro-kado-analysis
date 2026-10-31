@@ -1,3 +1,4 @@
+import {weekdayCustomers} from './weekday.js';
 import {marketInsights} from './market-insights.js';
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
 import {decodeSurveyCsv,mergeCsvReport} from './csv-import.js';
@@ -275,6 +276,7 @@ function renderMarketSize(){
 }
 bindChange($('marketSizePeriod'),renderMarketSize);
 function drawChart(){
+ renderWeekdayCustomers();
  renderInsights();
  renderMarketSize();
  const tm=+$('time').value||11,rate=$('rate').value,group=$('chartGroup').value;
@@ -531,3 +533,19 @@ $('transferFile').onchange=async event=>{
  }catch(error){if(staged)Object.assign(S,before);$('transferStatus').textContent=error instanceof SyntaxError?'JSONを読み取れませんでした。連携ファイルを選び直してください。':error.message;}
  finally{$('transferImport').disabled=false;$('transferExport').disabled=false;}
 };
+
+function renderWeekdayCustomers(){
+ const monthSelect=$('weekdayMonth'),months=uniq([...S.summaries,...S.records].map(r=>r.date.slice(0,7))).reverse(),monthValues=['',...months];
+ if(JSON.stringify([...monthSelect.options].map(o=>o.value))!==JSON.stringify(monthValues)){const previous=monthSelect.value;monthSelect.innerHTML='<option value="">指定期間</option>'+months.map(m=>`<option value="${m}">${m.slice(0,4)}年${Number(m.slice(5))}月</option>`).join('');monthSelect.value=months.includes(previous)?previous:'';}
+ const month=monthSelect.value,bounds=month?periodBounds(month+'-01','month'):null,from=bounds?.start||$('from').value,to=bounds?.end||$('to').value,time=$('time').value||'average',rate=$('rate').value;
+ const rows=weekdayCustomers(S,{from,to,time,rate}).sort((a,b)=>a.store===TARGET?-1:b.store===TARGET?1:a.store.localeCompare(b.store,'ja'));
+ const storeSelect=$('weekdayStore'),stores=rows.map(r=>r.store);
+ if(JSON.stringify([...storeSelect.options].map(o=>o.value))!==JSON.stringify(stores)){const previous=storeSelect.value;storeSelect.innerHTML=stores.map(store=>`<option>${esc(store)}</option>`).join('');storeSelect.value=stores.includes(previous)?previous:stores.includes(TARGET)?TARGET:stores[0]||'';}
+ const labels=['月','火','水','木','金','土','日'],number=n=>n.toLocaleString('ja-JP',{maximumFractionDigits:1});
+ $('weekdayContext').textContent=`${from||'開始日指定なし'}〜${to||'終了日指定なし'} / ${time==='average'?'11・15・19時平均':time+'時'} / ${rate||'全種別'} / 全${rows.length}店舗。月選択時は月全体、指定期間は共通の開始日・終了日を使用。時間・貸玉の指定に連動します。`;
+ $('weekdayPeaks').innerHTML=rows.length?rows.map(r=>`<div><b>${esc(r.store)}</b>：${r.best.length?'★ '+r.best.map(i=>labels[i]+'曜').join('・')+' '+number(r.days[r.best[0]].customers)+'人':'未取得'}</div>`).join(''):'この条件のデータはありません。';
+ const selected=rows.find(r=>r.store===storeSelect.value),max=selected?Math.max(1,...selected.days.map(d=>d.customers||0)):1;
+ $('weekdayBars').innerHTML=selected?`<b>${esc(selected.store)}</b>`+selected.days.map((d,i)=>`<div style="display:grid;grid-template-columns:38px 1fr 95px;align-items:center;gap:6px;margin:8px 0;font-size:12px"><b>${labels[i]}曜</b><div style="background:#edf1f8;border-radius:4px;height:22px"><div style="width:${d.customers===null?0:d.customers/max*100}%;height:100%;background:${selected.best.includes(i)?'#0f62fe':'#7da5e7'};border-radius:4px"></div></div><span>${d.customers===null?'未取得':(selected.best.includes(i)?'★ ':'')+number(d.customers)+'人'}<br>${d.count}日${d.missing?' / 不足'+d.missing+'日':''}</span></div>`).join(''):'';
+ $('weekdayTable').innerHTML=rows.length?'<table class="store-matrix"><thead><tr><th>曜日</th>'+rows.map(r=>`<th>${esc(r.store)}</th>`).join('')+'</tr></thead><tbody>'+labels.map((label,i)=>'<tr><th>'+label+'曜</th>'+rows.map(r=>{const d=r.days[i],best=r.best.includes(i);return `<td style="${best?'background:#e1edff;font-weight:bold':''}">${d.customers===null?'未取得':(best?'★ ':'')+number(d.customers)+'人'}<br><small>取得 ${d.count}日${d.missing?' / 時間不足 '+d.missing+'日':''}</small></td>`}).join('')+'</tr>').join('')+'</tbody></table>':'';
+}
+['weekdayMonth','weekdayStore'].forEach(id=>bindChange($(id),renderWeekdayCustomers));
