@@ -8,6 +8,7 @@ export function weekdayCustomers(data,{from='',to='',time='average',rate=''}={})
  }
  return [...stores].map(([store,buckets])=>{
   const days=buckets.map(({sum,count,missing})=>({customers:count?sum/count:null,count,missing})),values=days.map(d=>d.customers).filter(Number.isFinite),max=values.length?Math.max(...values):null;
-  return {store,days,best:max===null?[]:days.flatMap((d,i)=>d.customers!==null&&Math.abs(d.customers-max)<1e-9?[i]:[])};
+  const count=buckets.reduce((n,b)=>n+b.count,0),average=count?buckets.reduce((n,b)=>n+b.sum,0)/count:null,min=values.length?Math.min(...values):null;
+  return {store,average,observedWeekdays:values.length,days:days.map(d=>({...d,delta:d.customers===null?null:d.customers-average,percent:d.customers!==null&&average>0?(d.customers/average-1)*100:null})),best:max===null?[]:days.flatMap((d,i)=>d.customers!==null&&Math.abs(d.customers-max)<1e-9?[i]:[]),worst:values.length>1&&max-min>1e-9?days.flatMap((d,i)=>d.customers!==null&&Math.abs(d.customers-min)<1e-9?[i]:[]):[]};
  });
 }
