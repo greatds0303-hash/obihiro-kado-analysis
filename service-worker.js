@@ -1,5 +1,5 @@
-const CACHE='obihiro-kado-v41';
-const ASSETS=['./','./index.html','./pwa.js?v=41','./market-report.js?v=41','./market-report-analysis.js?v=41','./market-report.css?v=41','./analysis.js','./weekday.js','./market-insights.js','./csv-import.js','./trend-chart.js','./api-client.js','./report-parser.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
+const CACHE='obihiro-kado-v42';
+const ASSETS=['./','./index.html','./pwa.js?v=42','./market-report.js?v=41','./market-report-analysis.js?v=41','./market-report.css?v=41','./analysis.js','./weekday.js','./market-insights.js?v=42','./csv-import.js','./trend-chart.js','./api-client.js','./report-parser.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('obihiro-kado-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
