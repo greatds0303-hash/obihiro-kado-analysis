@@ -1,0 +1,62 @@
+.market {
+ --market-ink: #123051;
+ --market-muted: #475569;
+ scroll-margin-top: 72px;
+ padding: clamp(14px, 2.5vw, 28px);
+}
+.market [hidden] { display: none; }
+.market-header, .market-actions { display: flex; align-items: center; gap: 8px 16px; }
+.market-header { flex-wrap: wrap; justify-content: space-between; }
+.market h1, .market h2 { color: var(--market-ink); margin: 0; }
+.market h1 { font-size: clamp(23px, 3vw, 32px); }
+.market h2 { font-size: 17px; }
+.market-scope, .market .market-note { padding: 0; background: none; color: var(--market-muted); font-size: 13px; line-height: 1.6; }
+.market-scope { font-weight: 700; margin: 4px 0 0; }
+.market-scope:empty, .market-feedback:empty { display: none; }
+.market-filters, .market-metrics, .market-details { display: grid; gap: 10px; margin-top: 16px; }
+.market-filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.market-filters .field { min-width: 0; }
+.market-filters .field label { font-size: 14px; }
+.market-filters .field input, .market-filters .field select {
+ box-sizing: border-box;
+ color: var(--market-ink);
+ font-size: 16px;
+ min-height: 43px;
+ min-width: 0;
+}
+.market-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.market-metric { border: 1px solid var(--line); border-radius: 10px; padding: 12px; color: var(--market-muted); font-size: 14px; }
+.market-metric strong { display: block; color: var(--market-ink); font-size: clamp(21px, 3vw, 33px); margin: 3px 0; }
+.market-up { color: #087251; }
+.market-down { color: #a32836; }
+.market-brief { margin-top: 16px; border-left: 4px solid #0a62b5; border-radius: 4px 10px 10px 4px; padding: 13px; background: #edf5ff; }
+.market-brief p { margin: 7px 0 0; font-size: 16px; line-height: 1.6; }
+.market-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.market-details h2 { margin-bottom: 8px; }
+.market-trend, .market-details > div { min-width: 0; }
+.market-trend canvas { height: 176px; max-width: 100%; }
+.market-trend summary { color: var(--market-muted); cursor: pointer; font-size: 14px; }
+.market-trend .scroll { margin-top: 8px; }
+.market-stores { max-height: 320px; }
+.market td, .market th { text-align: right; font-size: 13px; }
+.market td:first-child, .market th:first-child, .market-stores td:nth-child(2), .market-stores th:nth-child(2) { text-align: left; }
+.market-stores td:nth-child(2) { white-space: normal; min-width: 7em; overflow-wrap: anywhere; }
+.market-own { font-weight: 700; background: #edf5ff; }
+.market-visually-hidden { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }
+@media (max-width: 680px) {
+ .market-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+ .market-details { grid-template-columns: minmax(0, 1fr); }
+ .market-metric { padding: 8px; font-size: 13px; }
+}
+@media print {
+ body { background: white; padding: 0; }
+ .topbar, .bottomnav, .install-banner, #home > :not(#market),
+ .market-actions, .market-filters, .market-feedback, .market-trend details { display: none !important; }
+ #home, #market { max-width: none; padding: 0; margin: 0; border: 0; box-shadow: none; }
+ #marketTitle::before { content: 'EAGLE 帯広店 '; }
+ .market-metrics, .market-brief, .market-trend { break-inside: avoid; }
+ .market-details { grid-template-columns: minmax(0, 1fr); }
+ .market-stores { max-height: none; overflow: visible; }
+ .market th { position: static; }
+ .market tr { break-inside: avoid; }
+}

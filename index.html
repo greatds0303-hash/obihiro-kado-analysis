@@ -33,14 +33,54 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 .install-banner{display:none;position:fixed;left:12px;right:12px;bottom:82px;z-index:40;background:#0b2d5c;color:#fff;padding:12px;border-radius:12px;box-shadow:0 4px 20px #0004}.install-banner.show{display:block}
 @media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}.filters{grid-template-columns:repeat(2,1fr)}.compare{grid-template-columns:1fr}.wrap{padding:9px}}
 .insight-matrix th:first-child,.insight-matrix td:first-child{position:sticky;left:0;background:#f8f9fc;z-index:2;min-width:85px}.insight-matrix th:first-child{z-index:3}.insight-matrix td{min-width:165px;white-space:normal;line-height:1.8}.insight-link{background:none;border:0;color:#0f62fe;text-decoration:underline;font:inherit;padding:4px;cursor:pointer}#insightContent{line-height:1.8}#insightContent .delta-up{color:#172033}#insightContent .delta-down{color:#c13d3d}</style>
+<link rel="stylesheet" href="./market-report.css?v=41">
 </head>
 <body>
 <div class="topbar"><div class="title">EAGLE 帯広店 稼働分析</div><div class="sub">メール自動同期・VMG解析・端末内保存</div></div>
 
 <div class="wrap" id="home">
   <div id="appUpdate" class="card" hidden><b>新しい版が使えます</b><p class="small">操作中の自動再読み込みは行いません。</p><button class="btn" id="applyUpdate">最新版に更新</button></div>
+  <section class="card market" id="market" aria-labelledby="marketTitle">
+    <div class="market-header">
+      <div><h1 id="marketTitle">市場の要約</h1><p id="marketScope" class="market-scope"></p></div>
+      <div class="row market-actions" id="marketActions" hidden>
+        <button class="btn gray" id="marketCopy" type="button">要約をコピー</button>
+        <button class="btn" id="marketPrint" type="button">印刷・PDF</button>
+      </div>
+    </div>
+    <div class="market-filters">
+      <div class="field"><label for="marketPreset">表示期間</label><select id="marketPreset"><option value="1">最新日</option><option value="7" selected>直近7日</option><option value="14">直近14日</option><option value="30">直近30日</option><option value="90">直近90日</option><option value="all">全期間</option><option value="custom">日付を指定</option></select></div>
+      <div class="field"><label for="marketFrom">開始日</label><input type="date" id="marketFrom"></div>
+      <div class="field"><label for="marketTo">終了日</label><input type="date" id="marketTo"></div>
+      <div class="field"><label for="marketTime">報告時刻</label><select id="marketTime"><option value="11">11時</option><option value="15">15時</option><option value="19">19時</option><option value="average" selected>11・15・19時の平均</option></select></div>
+    </div>
+    <p id="marketStatus" class="market-note" role="status"></p>
+    <div id="marketResults" hidden>
+      <div class="market-metrics" id="marketMetrics"></div>
+      <p id="marketComparison" class="market-note"></p>
+      <div class="market-brief">
+        <h2>会議で伝えるポイント</h2>
+        <p id="marketConclusion"></p>
+        <p id="marketCompetition"></p>
+        <p id="marketFollowup"></p>
+      </div>
+      <div class="market-details">
+        <div class="market-trend">
+          <h2>市場の客数推移</h2>
+          <canvas id="marketChart" role="img" aria-label="日別の市場客数の推移"></canvas>
+          <details><summary>日別の数値</summary><div class="scroll" id="marketDaily"></div></details>
+        </div>
+        <div>
+          <h2>店舗別の動き</h2>
+          <div class="scroll market-stores" id="marketStores"></div>
+        </div>
+      </div>
+      <p id="marketMethod" class="market-note"></p>
+    </div>
+    <div id="marketFeedback" class="market-note market-feedback" role="status"></div>
+  </section>
   <section class="card" id="marketInsights">
-    <b>市場の要約・店舗×種別の増減</b>
+    <b>店舗×種別の増減</b>
     <div class="field" style="margin-top:10px"><label for="insightMode">比較方法</label><select id="insightMode"><option value="month">最新の表示月と前月の平均</option><option value="day">最新の表示日と前日</option><option value="week">最新の表示日と前週の同じ曜日</option><option value="weekday">最新の表示日と直近4週間の同じ曜日</option></select></div>
     <div id="insightContent" aria-live="polite"></div>
   </section>
@@ -207,6 +247,6 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 
 <div class="install-banner" id="installBanner"><b>ホーム画面に追加できます</b><div class="small" style="color:#dce7ff;margin-top:3px">通常のアプリのようにアイコンから起動できます。</div><div class="row" style="margin-top:8px"><button class="btn" id="installBtn">インストール</button><button class="btn gray" id="installClose">閉じる</button></div></div>
 
-<script type="module" src="./pwa.js"></script>
+<script type="module" src="./pwa.js?v=41"></script>
 </body>
 </html>

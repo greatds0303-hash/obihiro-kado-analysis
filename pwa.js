@@ -1,3 +1,4 @@
+import {setupMarket} from './market-report.js?v=41';
 import {weekdayCustomers} from './weekday.js';
 import {marketInsights} from './market-insights.js';
 import {parseReport,normalizeText,normalizeStore,validDate} from './report-parser.js';
@@ -22,6 +23,7 @@ function bindChange(element,handler){
   }else handler(event);
  });
 }
+const updateMarket=setupMarket(()=>S.summaries,TARGET,bindChange);
 const DB_NAME='obihiro-kado-db', STORE='state';
 
 function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{r.result.createObjectStore(STORE)};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -76,6 +78,7 @@ function filtered(type){const arr=S[type==='summary'?'summaries':type],f=$('from
 function dayDiff(date,days){return comparisonDate(date,String(days))}
 function fmtDelta(v){if(v==null||Number.isNaN(v))return '-';return(v>0?'+':'')+v}
 function updateAll(){
+  updateMarket();
   renderShareAlerts();
   const dates=uniq(S.summaries.map(x=>x.date)),stores=uniq(S.summaries.map(x=>x.store));$('kEmails').textContent=S.emails.toLocaleString();$('kDays').textContent=dates.length.toLocaleString();$('kRecords').textContent=S.records.length.toLocaleString();$('kStores').textContent=stores.length;$('kRange').textContent=dates.length?`${dates[0].slice(5).replace('-','/')}〜${dates.at(-1).slice(5).replace('-','/')}`:'-';
   fillSelect('store',stores,TARGET);const groupSelect=$('chartGroup'),selectedGroup=groupSelect.value;groupSelect.innerHTML='<option value="">全体・貸玉種別で比較</option>'+uniq(S.specials.map(r=>r.group)).map(group=>`<option>${esc(group)}</option>`).join('');groupSelect.value=selectedGroup;fillSelect('rate',uniq(S.records.map(x=>rateCategory(x.rate))));if(dates.length&&autoRange){$('from').value=dates.at(-1).slice(0,4)+'-07-04';if($('from').value>dates.at(-1))$('from').value=dates[0];$('to').value=dates.at(-1)}
